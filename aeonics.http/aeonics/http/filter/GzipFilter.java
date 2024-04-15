@@ -6,8 +6,10 @@
  */
 package aeonics.http.filter;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import aeonics.data.Data;
@@ -58,7 +60,7 @@ public class GzipFilter extends Filter
 				{
 					g.write(body);
 					g.finish();
-					response.put("body", zipped.toByteArray());
+					response.put("body", new String(zipped.toByteArray(), StandardCharsets.ISO_8859_1));
 					response_headers.put("Content-Encoding", "gzip");
 				}
 			}

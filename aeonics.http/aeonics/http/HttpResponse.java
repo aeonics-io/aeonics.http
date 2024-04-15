@@ -28,7 +28,7 @@ public class HttpResponse extends Destination
 				// FIX Content-Length AND Content-Type
 				Charset charset = StandardCharsets.ISO_8859_1;
 				String mime = c.asString("mime");
-				if( mime.startsWith("text/") || mime.startsWith("application/json") )
+				if( !h.containsKey("Content-Encoding") && (mime.startsWith("text/") || mime.startsWith("application/json")) )
 				{
 					int i = mime.indexOf("charset=");
 					if( i < 0 ) { mime += "; charset=UTF-8"; charset = StandardCharsets.UTF_8; }
