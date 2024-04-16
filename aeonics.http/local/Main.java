@@ -23,7 +23,6 @@ import aeonics.manager.Config;
 import aeonics.manager.Lifecycle;
 import aeonics.manager.Manager;
 import aeonics.template.Factory;
-import aeonics.template.Item;
 import aeonics.manager.Lifecycle.Phase;
 import aeonics.util.Callback;
 
@@ -43,9 +42,6 @@ public class Main extends Plugin
 	
 	private static void onLoad()
 	{
-		// register the endpoint factory
-		PingEndpoint.item().template();
-		
 		Factory.add(new Router());
 		Factory.add(new Endpoint.File());
 		Factory.add(new CorsFilter());
@@ -55,13 +51,6 @@ public class Main extends Plugin
 		Factory.add(new OptionsMethodFilter());
 		Factory.add(new HttpServer());
 		Factory.add(new HttpResponse());
-	}
-	
-	private static class PingEndpoint extends Endpoint.Rest.Type
-	{
-		public PingEndpoint() { super("/api/ping", "GET"); }
-		public Data process(Data parameters) { return Data.of(""); }
-		public static Item<PingEndpoint> item() { return Item.from(Endpoint.class, PingEndpoint.class, PingEndpoint::new); }
 	}
 	
 	private static void onBeforeRun()
@@ -74,7 +63,15 @@ public class Main extends Plugin
 	{
 		Action.Type router = Registry.of(Action.class).get(Manager.of(Config.class).get(Router.class, "default").asString());
 		router
-			.addRelation("endpoints", PingEndpoint.item().template().build(null))
+			.addRelation("endpoints", new Endpoint.Rest() { }
+				.template()
+				.summary("Test endpoint")
+				.description("This endpoint returns the same response all the time. If this endpoint responds, it means that the system is up and running.")
+				.build()
+				.process(() -> Data.map().put("success", true))
+				.url("/api/ping")
+				.method("GET")
+				)
 			.addRelation("endpoints", Registry.of(Endpoint.class).put((Endpoint.Type) Factory.of(Endpoint.class).get(Endpoint.File.class).build(Data.map().put("filter", "/file/"))
 				.addRelation("storage", Registry.of(Storage.class).put(Factory.of(Storage.class).get(Storage.File.class).build(Data.map().put("root", "data"))))
 				))

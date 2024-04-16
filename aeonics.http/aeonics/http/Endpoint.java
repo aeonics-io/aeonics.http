@@ -2,12 +2,14 @@ package aeonics.http;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,6 +19,7 @@ import aeonics.entity.Message;
 import aeonics.entity.Registry;
 import aeonics.entity.Storage;
 import aeonics.entity.security.User;
+import aeonics.template.Factory;
 import aeonics.template.Item;
 import aeonics.template.Parameter;
 import aeonics.template.Relationship;
@@ -57,6 +60,13 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 		 * @return this
 		 */
 		public <T extends Endpoint.Type> T methods(List<String> value) { methods = value; return (T) this; }
+		
+		/**
+		 * Set the single HTTP method this endpoint accepts
+		 * @param value the HTTP method this endpoint accepts
+		 * @return this
+		 */
+		public <T extends Endpoint.Type> T method(String value) { methods = Collections.singletonList(value); return (T) this; }
 		
 		/**
 		 * The URL of this endpoint
@@ -117,20 +127,6 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 		 * Hardcoded category to the {@link Endpoint} class
 		 */
 		public final String category() { return StringUtils.toLowerCase(Endpoint.class); }
-		
-		/**
-		 * Returns the template that can create this entity.
-		 * This method is the reverse flow from Template to Entity for the sake of simplicity and conciseness
-		 * of declaring a new endpoint.
-		 * 
-		 * <p>It is recommended that this method calls a subtype static method as such:</p>
-		 * <pre>
-		 * public static Item&lt;MyEndpoint&gt; item() { return Item.from(Endpoint.class, MyEndpoint.class, MyEndpoint::new); }
-		 * </pre>
-		 * @param <T> the endpoint type
-		 * @return the template that can create this entity
-		 */
-		//public abstract <T extends Endpoint.Type> Template<T> template();
 	}
 	
 	// =========================================
@@ -139,25 +135,68 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 	//
 	// =========================================
 	
+	/**
+	 * This is the base REST endpoint.
+	 * <p>There are two recommended ways to create your own endpoint.
+	 * The first method allows to provide the data processing function and registers automatically the template in
+	 * the factory and the instance in the registry:</p>
+	 * <pre>
+	 * Endpoint.Rest.Type endpoint = new Endpoint.Rest() { } // &lt;-- note the '{ }' to create a new anonymous class
+	 *     
+	 *     .template() // &lt;-- create the template and register it in the factory
+	 *     
+	 *     // add all your template documentation here
+	 *     .summary("Says hello to the world")
+	 *     
+	 *     .build() // &lt;-- create an instance of the entity and register it in the registry
+	 *     
+	 *     // place the rest endpoint logic here
+	 *     .process(() -> Data.map().put("hello", "world")) // &lt;-- the endpoint logic
+	 *     
+	 *     // set the generic endpoint settings here
+	 *     .url("/hello")
+	 *     .method("GET");
+	 * </pre>
+	 * 
+	 * <p>If you need more control over the endpoint behavior such as private member variables or multiple
+	 * methods, then you need to declare a custom entity end register it <b>before</b> calling the template method:</p>
+	 * <pre>
+	 * public static class Hello extends Endpoint.Rest.Type {
+     *     private String who = "world";
+	 *     private Data hello() { return Data.map().put("hello", who); }
+	 *     public Data process() { return hello(); }
+	 * }
+	 * 
+	 * Endpoint.Rest.Type endpoint = new Endpoint.Rest() { } // &lt;-- note the '{ }' to create a new anonymous class
+	 *     
+	 *     // register the custom entity here before calling the template
+	 *     .entity(Hello.class)
+	 *     .creator(Hello::new)
+	 *     
+	 *     .template() // &lt;-- create the template and register it in the factory
+	 *     
+	 *     // add all your template documentation here
+	 *     .summary("Says hello to the world")
+	 *     
+	 *     .build() // &lt;-- create an instance of the entity and register it in the registry
+	 *     
+	 *     // set the generic endpoint settings here
+	 *     .url("/hello")
+	 *     .method("GET");
+	 * </pre>
+	 */
 	public abstract static class Rest extends Endpoint
 	{
 		/**
 		 * This is the base REST endpoint type.
-		 * You should override one of the {@link #process()} variants to generate the response.
 		 * <p>Unless overridden, all instances of this class are marked as internal in the constructor.</p>
 		 */
 		@SuppressWarnings("unchecked")
 		public static class Type extends Endpoint.Type
 		{
-			/**
-			 * Creates an instance of this class with the given url and methods
-			 * @param url the endpoint url
-			 * @param methods the accepted HTTP methods
-			 */
-			public Type(String url, String...methods)
+			public Type()
 			{
-				url(url);
-				methods(Arrays.asList(methods));
+				super();
 				internal(true);
 			}
 			
@@ -243,7 +282,7 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @param handler the error handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Type> T error(BiFunction<Tuple<Data, User.Type>, Throwable, Data> handler) { errorHandler = handler; return (T) this; }
+			public <T extends Endpoint.Rest.Type> T error(BiFunction<Tuple<Data, User.Type>, Throwable, Data> handler) { errorHandler = handler; return (T) this; }
 			
 			/**
 			 * Sets an error handler for this endpoint.
@@ -253,7 +292,7 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @param handler the error handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Type> T error(BiConsumer<Tuple<Data, User.Type>, Throwable> handler) { return error((request, error) -> { handler.accept(request, error); return null; }); }
+			public <T extends Endpoint.Rest.Type> T error(BiConsumer<Tuple<Data, User.Type>, Throwable> handler) { return error((request, error) -> { handler.accept(request, error); return null; }); }
 			
 			/**
 			 * Handler called before processing the request
@@ -276,7 +315,7 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @param handler the before processing handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Type> T before(BiFunction<Data, User.Type, Data> handler) { beforeHandler = handler; return (T) this; }
+			public <T extends Endpoint.Rest.Type> T before(BiFunction<Data, User.Type, Data> handler) { beforeHandler = handler; return (T) this; }
 			
 			/**
 			 * Sets a handler to intercept the request before it is processed by this endpoint.
@@ -286,7 +325,7 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @param handler the before processing handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Type> T before(BiConsumer<Data, User.Type> handler) { return before((parameters, user) -> { handler.accept(parameters, user); return null; }); }
+			public <T extends Endpoint.Rest.Type> T before(BiConsumer<Data, User.Type> handler) { return before((parameters, user) -> { handler.accept(parameters, user); return null; }); }
 			
 			/**
 			 * Handler called after processing the request
@@ -308,7 +347,7 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @param handler the after processing handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Type> T after(BiFunction<Tuple<Data, User.Type>, Data, Data> handler) { afterHandler = handler; return (T) this; }
+			public <T extends Endpoint.Rest.Type> T after(BiFunction<Tuple<Data, User.Type>, Data, Data> handler) { afterHandler = handler; return (T) this; }
 			
 			/**
 			 * Sets a handler to intercept the response after it has been generated by this endpoint.
@@ -318,7 +357,7 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @param handler the after processing handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Type> T after(BiConsumer<Tuple<Data, User.Type>, Data> handler) { return after((request, response) -> { handler.accept(request, response); return null; }); }
+			public <T extends Endpoint.Rest.Type> T after(BiConsumer<Tuple<Data, User.Type>, Data> handler) { return after((request, response) -> { handler.accept(request, response); return null; }); }
 			
 			/**
 			 * Processes the request and generates a response.
@@ -398,6 +437,19 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			}
 			
 			/**
+			 * Process function with 2 parameters
+			 */
+			private BiFunction<Data, Message, Data> processor1 = null;
+			
+			/**
+			 * Sets the process function that will replace the {@link #process(Data, Message)} method.
+			 * @param <T> this
+			 * @param processor the process function with 2 input parameters
+			 * @return this
+			 */
+			public <T extends Endpoint.Rest.Type> T process(BiFunction<Data, Message, Data> processor) { this.processor1 = processor; return (T) this; }
+			
+			/**
 			 * Processes the request and generates a response.
 			 * You may override this method if you only need the validated input parameters but also the original message data.
 			 * @param params the validated input parameters
@@ -406,7 +458,24 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
 			 * @see #process(Message)
 			 */
-			public Data process(Data params, Message request) throws Throwable { return process(params); }
+			public Data process(Data params, Message request) throws Throwable
+			{
+				if( processor1 != null ) return processor1.apply(params, request);
+				else return process(params);
+			}
+			
+			/**
+			 * Process function with 1 parameter
+			 */
+			private Function<Data, Data> processor2 = null;
+			
+			/**
+			 * Sets the process function that will replace the {@link #process(Data)} method.
+			 * @param <T> this
+			 * @param processor the process function with 1 input parameter
+			 * @return this
+			 */
+			public <T extends Endpoint.Rest.Type> T process(Function<Data, Data> processor) { this.processor2 = processor; return (T) this; }
 			
 			/**
 			 * Processes the request and generates a response.
@@ -416,7 +485,24 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
 			 * @see #process(Message)
 			 */
-			public Data process(Data params) throws Throwable { return process(); }
+			public Data process(Data params) throws Throwable
+			{
+				if( processor2 != null ) return processor2.apply(params);
+				else return process();
+			}
+			
+			/**
+			 * Process function without parameters
+			 */
+			private Supplier<Data> processor3 = null;
+			
+			/**
+			 * Sets the process function that will replace the {@link #process()} method.
+			 * @param <T> this
+			 * @param processor the process function without input parameters
+			 * @return this
+			 */
+			public <T extends Endpoint.Rest.Type> T process(Supplier<Data> processor) { this.processor3 = processor; return (T) this; }
 			
 			/**
 			 * Processes the request and generates a response.
@@ -425,7 +511,11 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
 			 * @see #process(Message)
 			 */
-			public Data process() throws Throwable { return null; }
+			public Data process() throws Throwable
+			{
+				if( processor3 != null ) return processor3.get();
+				else return null;
+			}
 			
 			/**
 			 * Collects input parameters based on the original message data.
@@ -470,6 +560,59 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 				}
 				return params;
 			}
+		}
+	
+		/**
+		 * The target entity type
+		 */
+		private Class<? extends Endpoint.Rest.Type> entity = Endpoint.Rest.Type.class;
+		
+		/**
+		 * Returns the target entity type
+		 * @return the target entity type
+		 */
+		public Class<? extends Endpoint.Rest.Type> entity() { return entity; }
+		
+		/**
+		 * Sets the final entity type that shall be returned by the template.
+		 * @param type the entity type
+		 * @return this
+		 */
+		public Rest entity(Class<? extends Endpoint.Rest.Type> type) { this.entity = type; return this; }
+		
+		/**
+		 * The target entity creator
+		 */
+		private Supplier<? extends Endpoint.Rest.Type> creator = Endpoint.Rest.Type::new;
+		
+		/**
+		 * Returns the target entity creator
+		 * @return the target entity creator
+		 */
+		private Supplier<? extends Endpoint.Rest.Type> creator() { return creator; }
+		
+		/**
+		 * Sets the final entity creator type that shall be used by the template.
+		 * @param creator the entity creator
+		 * @return this
+		 */
+		public Rest creator(Supplier<? extends Endpoint.Rest.Type> creator) { this.creator = creator; return this; }
+		
+		/**
+		 * Returns the template for this endpoint.
+		 * <p>If the entity instance has been fixed by {@link #entity(Type)}, then the template will use that instance.
+		 * Otherwise, it will return a new template based on the {@link #entity()} that you can override.</p>
+		 * <p>The template is automatically registered in the {@link Factory} for convenience.</p>
+		 * <p>When the template {@link Template#build()} a new instance, it will either return the existing instance if
+		 * one has been set by {@link #entity(Type)}, or it will create a new empty instance of {@link Endpoint.Rest.Type}.</p>
+		 * <p>The instance is automatically registered in the {@link Registry}.</p>
+		 */
+		public Template<? extends Type> template()
+		{
+			Template<Type> t = new Template<Type>(entity(), this.getClass(), Endpoint.class)
+				.creator(creator())
+				.builder((data, instance) -> { Registry.add(instance); });
+			return Factory.add(t);
 		}
 	}
 	
