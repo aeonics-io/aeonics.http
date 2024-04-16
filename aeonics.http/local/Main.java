@@ -84,13 +84,16 @@ public class Main extends Plugin
 		;
 		
 		String queue = Registry.of(Queue.class).put(Factory.of(Queue.class).get(Queue.class).build(Data.map().put("concurrency", "8")
-			.put("actions", Data.list().add(Data.map().put("id", router.id()).put("channel", "request")))
+			.put("actions", Data.list().add(Data.map().put("id", router.id()).put("input", "request")))
 			)).id();
 		String topic = Registry.of(Topic.class).put(Factory.of(Topic.class).get(Topic.class).build(Data.map().put("name", "http").put("queues", Data.list()
 			.add(Data.map().put("id", queue).put("binding", "#")))
 			)).id();
-		Registry.of(Origin.class).put(Factory.of(Origin.class).get(HttpServer.class).build(Data.map().put("topics", Data.list()
-				.add(Data.map().put("id", topic).put("channel", "request")))
-			));
+		
+		Registry.of(Origin.class).put(Factory.of(Origin.class).get(HttpServer.class).build(Data.map()
+			.put("topics", Data.list()
+				.add(Data.map()
+					.put("id", topic)
+					.put("channel", "request")))));
 	}
 }

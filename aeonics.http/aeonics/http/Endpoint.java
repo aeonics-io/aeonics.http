@@ -145,15 +145,15 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 	 *     
 	 *     .template() // &lt;-- create the template and register it in the factory
 	 *     
-	 *     // add all your template documentation here
+	 *     // add all your template documentation
 	 *     .summary("Says hello to the world")
 	 *     
 	 *     .build() // &lt;-- create an instance of the entity and register it in the registry
 	 *     
-	 *     // place the rest endpoint logic here
+	 *     // set the rest endpoint logic
 	 *     .process(() -> Data.map().put("hello", "world")) // &lt;-- the endpoint logic
 	 *     
-	 *     // set the generic endpoint settings here
+	 *     // set the generic endpoint settings
 	 *     .url("/hello")
 	 *     .method("GET");
 	 * </pre>
@@ -169,18 +169,18 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 	 * 
 	 * Endpoint.Rest.Type endpoint = new Endpoint.Rest() { } // &lt;-- note the '{ }' to create a new anonymous class
 	 *     
-	 *     // register the custom entity here before calling the template
+	 *     // register the custom entity before calling the template
 	 *     .entity(Hello.class)
 	 *     .creator(Hello::new)
 	 *     
 	 *     .template() // &lt;-- create the template and register it in the factory
 	 *     
-	 *     // add all your template documentation here
+	 *     // add all your template documentation
 	 *     .summary("Says hello to the world")
 	 *     
 	 *     .build() // &lt;-- create an instance of the entity and register it in the registry
 	 *     
-	 *     // set the generic endpoint settings here
+	 *     // set the generic endpoint settings
 	 *     .url("/hello")
 	 *     .method("GET");
 	 * </pre>
@@ -554,6 +554,7 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 					if( value.isNull() )
 						value = p.b.defaultValue();
 					
+					value = p.b.resolve(value, request.content());
 					if( !p.b.validate(value) )
 						throw new IllegalArgumentException("Parameter validation failed for " + p.b.name());
 					params.put(p.b.name(), value);
@@ -611,6 +612,8 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 		{
 			Template<Type> t = new Template<Type>(entity(), this.getClass(), Endpoint.class)
 				.creator(creator())
+				.enforceParameterValidation(false)
+				.removeParameter("name")
 				.builder((data, instance) -> { Registry.add(instance); });
 			return Factory.add(t);
 		}
@@ -1218,10 +1221,12 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 					.max(1))
 				.add(new Parameter("path")
 					.summary("Storage path")
-					.description("The path prefix in the storage in case content should be fetched from a subdirectory."))
+					.description("The path prefix in the storage in case content should be fetched from a subdirectory.")
+					.optional(true).defaultValue(Data.of("")))
 				.add(new Parameter("filter")
-					.summary("URL prefix"))
+					.summary("URL prefix")
 					.description("The URL prefix to filter which requests can be answered by this endpoint. The prefix filter should start with '/'.")
+					.optional(true).defaultValue(Data.of("/")))
 				.builder((data, instance) -> instance.methods().add("GET"))
 				;
 		}
