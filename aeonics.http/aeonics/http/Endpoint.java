@@ -19,7 +19,6 @@ import aeonics.entity.Message;
 import aeonics.entity.Registry;
 import aeonics.entity.Storage;
 import aeonics.entity.security.User;
-import aeonics.template.Factory;
 import aeonics.template.Item;
 import aeonics.template.Parameter;
 import aeonics.template.Relationship;
@@ -30,7 +29,7 @@ import aeonics.util.Tuple;
 /**
  * This item represents an HTTP endpoint that will produce a response to a request.
  */
-public abstract class Endpoint implements Item<Endpoint.Type>
+public abstract class Endpoint extends Item<Endpoint.Type>
 {
 	/**
 	 * This is the base endpoint.
@@ -129,6 +128,8 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 		public final String category() { return StringUtils.toLowerCase(Endpoint.class); }
 	}
 	
+	protected Class<? extends Endpoint> category() { return Endpoint.class; }
+	
 	// =========================================
 	//
 	// REST ENDPOINT
@@ -149,6 +150,7 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 	 *     .summary("Says hello to the world")
 	 *     
 	 *     .build() // &lt;-- create an instance of the entity and register it in the registry
+	 *     .&lt;Rest.Type&gt;cast()
 	 *     
 	 *     // set the rest endpoint logic
 	 *     .process(() -> Data.map().put("hello", "world")) // &lt;-- the endpoint logic
@@ -563,59 +565,14 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			}
 		}
 	
-		/**
-		 * The target entity type
-		 */
-		private Class<? extends Endpoint.Rest.Type> entity = Endpoint.Rest.Type.class;
+		protected Class<? extends Rest.Type> defaultEntity() { return Rest.Type.class; }
+		protected Supplier<? extends Rest.Type> defaultCreator() { return Rest.Type::new; }
 		
-		/**
-		 * Returns the target entity type
-		 * @return the target entity type
-		 */
-		public Class<? extends Endpoint.Rest.Type> entity() { return entity; }
-		
-		/**
-		 * Sets the final entity type that shall be returned by the template.
-		 * @param type the entity type
-		 * @return this
-		 */
-		public Rest entity(Class<? extends Endpoint.Rest.Type> type) { this.entity = type; return this; }
-		
-		/**
-		 * The target entity creator
-		 */
-		private Supplier<? extends Endpoint.Rest.Type> creator = Endpoint.Rest.Type::new;
-		
-		/**
-		 * Returns the target entity creator
-		 * @return the target entity creator
-		 */
-		private Supplier<? extends Endpoint.Rest.Type> creator() { return creator; }
-		
-		/**
-		 * Sets the final entity creator type that shall be used by the template.
-		 * @param creator the entity creator
-		 * @return this
-		 */
-		public Rest creator(Supplier<? extends Endpoint.Rest.Type> creator) { this.creator = creator; return this; }
-		
-		/**
-		 * Returns the template for this endpoint.
-		 * <p>If the entity instance has been fixed by {@link #entity(Type)}, then the template will use that instance.
-		 * Otherwise, it will return a new template based on the {@link #entity()} that you can override.</p>
-		 * <p>The template is automatically registered in the {@link Factory} for convenience.</p>
-		 * <p>When the template {@link Template#build()} a new instance, it will either return the existing instance if
-		 * one has been set by {@link #entity(Type)}, or it will create a new empty instance of {@link Endpoint.Rest.Type}.</p>
-		 * <p>The instance is automatically registered in the {@link Registry}.</p>
-		 */
-		public Template<? extends Type> template()
+		public Template<? extends Endpoint.Type> template()
 		{
-			Template<Type> t = new Template<Type>(entity(), this.getClass(), Endpoint.class)
-				.creator(creator())
+			return super.template()
 				.enforceParameterValidation(false)
-				.removeParameter("name")
-				.builder((data, instance) -> { Registry.add(instance); });
-			return Factory.add(t);
+				.removeParameter("name");
 		}
 	}
 	
@@ -1205,13 +1162,12 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 			}
 		}
 		
-		public Class<File.Type> entity() { return File.Type.class; }
+		protected Class<? extends File.Type> defaultEntity() { return File.Type.class; }
+		protected Supplier<? extends File.Type> defaultCreator() { return File.Type::new; }
 		
-		public Template<File.Type> template()
+		public Template<? extends Endpoint.Type> template()
 		{
-			return new Template<File.Type>(File.Type.class, File.class, Endpoint.class)
-				.creator(File.Type::new)
-				.type(File.class)
+			return super.template()
 				.summary("Storage mapping")
 				.description("This endpoint is a direct mapping to a storage location and responds with the target content if present.")
 				.add(new Relationship("storage")
@@ -1227,8 +1183,11 @@ public abstract class Endpoint implements Item<Endpoint.Type>
 					.summary("URL prefix")
 					.description("The URL prefix to filter which requests can be answered by this endpoint. The prefix filter should start with '/'.")
 					.optional(true).defaultValue(Data.of("/")))
-				.builder((data, instance) -> instance.methods().add("GET"))
-				;
+				.builder((data, instance) -> 
+				{
+					instance.methods().add("GET");
+					Registry.add(instance);
+				});
 		}
 	}
 }

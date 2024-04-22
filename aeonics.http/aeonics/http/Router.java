@@ -5,6 +5,7 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import aeonics.data.Data;
 import aeonics.entity.Action;
@@ -276,11 +277,12 @@ public class Router extends Action
 		}
 	}
 	
-	public Class<? extends Action.Type> entity() { return Type.class; }
+	protected Class<? extends Router.Type> defaultEntity() { return Router.Type.class; }
+	protected Supplier<? extends Router.Type> defaultCreator() { return Router.Type::new; }
 	
-	public Action.Template<? extends Action.Type> template()
+	public Action.Template template()
 	{
-		return (Action.Template<? extends Action.Type>) new Action.Template<Type>(Type.class, Router.class)
+		return super.template()
 			.input(new Channel("request")
 				.summary("Request")
 				.description("This channel expects a valid http request in input"))

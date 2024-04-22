@@ -6,6 +6,8 @@
  */
 package aeonics.http.filter;
 
+import java.util.function.Supplier;
+
 import aeonics.data.Data;
 import aeonics.entity.Message;
 import aeonics.http.Filter;
@@ -32,12 +34,12 @@ public class HttpsFilter extends Filter
 		}
 	}
 	
-	public Class<? extends Filter.Request> entity() { return Type.class; }
+	protected Class<? extends HttpsFilter.Type> defaultEntity() { return HttpsFilter.Type.class; }
+	protected Supplier<? extends HttpsFilter.Type> defaultCreator() { return HttpsFilter.Type::new; }
 	
-	public Template<? extends Filter.Request> template()
+	public Template<? extends Filter.Type> template()
 	{
-		return new Template<Type>(Type.class, HttpsFilter.class, Filter.class)
-			.creator(Type::new)
+		return super.template()
 			.summary("Force HTTPS")
 			.description("Forces a redirect to the same page in HTTPS with HSTS header. The redirection happens only if the 'http.forcehttps' global configuration is set.");
 	}

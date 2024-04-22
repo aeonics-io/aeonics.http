@@ -3,16 +3,14 @@ package local;
 import aeonics.Plugin;
 import aeonics.data.Data;
 import aeonics.entity.Action;
-import aeonics.entity.Destination;
-import aeonics.entity.Origin;
 import aeonics.entity.Queue;
 import aeonics.entity.Registry;
 import aeonics.entity.Storage;
 import aeonics.entity.Topic;
 import aeonics.http.Endpoint;
+import aeonics.http.Endpoint.Rest;
 import aeonics.http.HttpServer;
 import aeonics.http.Router;
-import aeonics.http.Filter;
 import aeonics.http.HttpResponse;
 import aeonics.http.filter.CorsFilter;
 import aeonics.http.filter.GzipFilter;
@@ -56,7 +54,7 @@ public class Main extends Plugin
 	private static void onBeforeRun()
 	{
 		if( !Manager.of(Config.class).contains(Router.class, "default") )
-			Manager.of(Config.class).set(Router.class, "default", Data.of(Registry.of(Action.class).put(Factory.of(Action.class).get(Router.class).build(null)).id()));
+			Manager.of(Config.class).set(Router.class, "default", Data.of(new Router().template().build().id()));
 	}
 	
 	private static void onRun()
@@ -68,32 +66,33 @@ public class Main extends Plugin
 				.summary("Test endpoint")
 				.description("This endpoint returns the same response all the time. If this endpoint responds, it means that the system is up and running.")
 				.build()
+				.<Rest.Type>cast()
 				.process(() -> Data.map().put("success", true))
 				.url("/api/ping")
 				.method("GET")
 				)
-			.addRelation("endpoints", Registry.of(Endpoint.class).put((Endpoint.Type) Factory.of(Endpoint.class).get(Endpoint.File.class).build(Data.map().put("filter", "/file/"))
-				.addRelation("storage", Registry.of(Storage.class).put(Factory.of(Storage.class).get(Storage.File.class).build(Data.map().put("root", "data"))))
+			.addRelation("endpoints", new Endpoint.File().template().build(Data.map().put("filter", "/file/"))
+				.addRelation("storage", new Storage.File().template().build(Data.map().put("root", "data"))
 				))
-			.addRelation("filters", Registry.of(Filter.class).put(Factory.of(Filter.class).get(CorsFilter.class).build(null)))
-			.addRelation("filters", Registry.of(Filter.class).put(Factory.of(Filter.class).get(GzipFilter.class).build(null)))
-			.addRelation("filters", Registry.of(Filter.class).put(Factory.of(Filter.class).get(HeadersFilter.class).build(null)))
-			.addRelation("filters", Registry.of(Filter.class).put(Factory.of(Filter.class).get(OptionsMethodFilter.class).build(null)))
-			.addRelation("destinations", Registry.of(Destination.class).put(Factory.of(Destination.class).get(HttpResponse.class).build(null)), 
+			.addRelation("filters", new CorsFilter().template().build())
+			.addRelation("filters", new GzipFilter().template().build())
+			.addRelation("filters", new HeadersFilter().template().build())
+			.addRelation("filters", new OptionsMethodFilter().template().build())
+			.addRelation("destinations", new HttpResponse().template().build(), 
 				Data.map().put("input", "response").put("output", "response"))
 		;
 		
-		String queue = Registry.of(Queue.class).put(Factory.of(Queue.class).get(Queue.class).build(Data.map().put("concurrency", "8")
+		String queue = new Queue().template().build(Data.map().put("concurrency", "8")
 			.put("actions", Data.list().add(Data.map().put("id", router.id()).put("input", "request")))
-			)).id();
-		String topic = Registry.of(Topic.class).put(Factory.of(Topic.class).get(Topic.class).build(Data.map().put("name", "http").put("queues", Data.list()
+			).id();
+		String topic = new Topic().template().build(Data.map().put("name", "http").put("queues", Data.list()
 			.add(Data.map().put("id", queue).put("binding", "#")))
-			)).id();
+			).id();
 		
-		Registry.of(Origin.class).put(Factory.of(Origin.class).get(HttpServer.class).build(Data.map()
+		new HttpServer().template().build(Data.map()
 			.put("topics", Data.list()
 				.add(Data.map()
 					.put("id", topic)
-					.put("channel", "request")))));
+					.put("channel", "request"))));
 	}
 }

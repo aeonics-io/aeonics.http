@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import aeonics.data.Data;
 import aeonics.entity.Destination;
@@ -98,11 +99,12 @@ public class HttpResponse extends Destination
 		}
 	}
 	
-	public Class<? extends Destination.Type> entity() { return Type.class; }
-
-	public Destination.Template<? extends Destination.Type> template()
+	protected Class<? extends HttpResponse.Type> defaultEntity() { return HttpResponse.Type.class; }
+	protected Supplier<? extends HttpResponse.Type> defaultCreator() { return HttpResponse.Type::new; }
+	
+	public Destination.Template template()
 	{
-		return (Destination.Template<? extends Destination.Type>) new Destination.Template<>(Type.class, HttpResponse.class)
+		return super.template()
 			.input(new Channel("response")
 				.summary("Http response")
 				.description("This channel expects a valid http response in input"))

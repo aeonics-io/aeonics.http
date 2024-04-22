@@ -6,6 +6,8 @@
  */
 package aeonics.http.filter;
 
+import java.util.function.Supplier;
+
 import aeonics.data.Data;
 import aeonics.entity.Message;
 import aeonics.http.Filter;
@@ -62,12 +64,12 @@ public class CorsFilter extends Filter
 		}
 	}
 
-	public Class<? extends Filter.Response> entity() { return Type.class; }
+	protected Class<? extends CorsFilter.Type> defaultEntity() { return CorsFilter.Type.class; }
+	protected Supplier<? extends CorsFilter.Type> defaultCreator() { return CorsFilter.Type::new; }
 	
-	public Template<? extends Filter.Response> template()
+	public Template<? extends Filter.Type> template()
 	{
-		return new Template<Type>(Type.class, CorsFilter.class, Filter.class)
-			.creator(Type::new)
+		return super.template()
 			.summary("CORS")
 			.description("Adds the CORS headers the HTTP response.")
 			.add(new Parameter("credentials")

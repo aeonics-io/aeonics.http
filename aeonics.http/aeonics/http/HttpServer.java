@@ -2,10 +2,12 @@ package aeonics.http;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import aeonics.data.Data;
 import aeonics.entity.Message;
 import aeonics.entity.Origin;
+import aeonics.entity.Registry;
 import aeonics.entity.security.Token;
 import aeonics.entity.security.User;
 import aeonics.http.protocol.Http1;
@@ -119,15 +121,15 @@ public class HttpServer extends Origin
 		}
 	}
 	
-	public Class<? extends Origin.Type> entity() { return HttpServer.Type.class; }
+	protected Class<? extends HttpServer.Type> defaultEntity() { return HttpServer.Type.class; }
+	protected Supplier<? extends HttpServer.Type> defaultCreator() { return HttpServer.Type::new; }
 	
-	public Origin.Template<? extends Origin.Type> template()
+	public Origin.Template template()
 	{
-		return (Origin.Template<? extends Origin.Type>) new Origin.Template<HttpServer.Type>(HttpServer.Type.class, HttpServer.class)
+		return super.template()
 			.output(new Channel("request")
 				.summary("Http requests")
 				.description("This channel emits http requests that have been received from the network."))
-			.creator(HttpServer.Type::new)
 			.summary("HTTP Server")
 			.description("This data origin element acts as an HTTP server. It needs to be connected to a Router to process the requests and then send the reply to the message linked connection.")
 			.add(new Parameter("port")
@@ -146,7 +148,7 @@ public class HttpServer extends Origin
 				.summary("Private key")
 				.description("The private key that matches the HTTPS certificate. Leave this value empty if the connection should use plain HTTP instead of HTTPS.")
 				.optional(true))
-			.builder((data, instance) -> { instance.stop(); instance.start(); })
+			.builder((data, instance) -> { instance.stop(); instance.start(); Registry.add(instance); })
 			.modifier((data, instance) -> { instance.stop(); instance.start(); })
 		;
 	}	

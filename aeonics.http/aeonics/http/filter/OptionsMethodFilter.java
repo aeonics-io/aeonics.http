@@ -6,6 +6,8 @@
  */
 package aeonics.http.filter;
 
+import java.util.function.Supplier;
+
 import aeonics.data.Data;
 import aeonics.entity.Message;
 import aeonics.http.Filter;
@@ -28,12 +30,12 @@ public class OptionsMethodFilter extends Filter
 		}
 	}
 	
-	public Class<? extends Filter.Request> entity() { return Type.class; }
+	protected Class<? extends OptionsMethodFilter.Type> defaultEntity() { return OptionsMethodFilter.Type.class; }
+	protected Supplier<? extends OptionsMethodFilter.Type> defaultCreator() { return OptionsMethodFilter.Type::new; }
 	
-	public Template<? extends Filter.Request> template()
+	public Template<? extends Filter.Type> template()
 	{
-		return new Template<Type>(Type.class, OptionsMethodFilter.class, Filter.class)
-			.creator(Type::new)
+		return super.template()
 			.summary("OPTIONS method")
 			.description("Returns an empty content for the OPTIONS request method.");
 	}

@@ -1,6 +1,7 @@
 package aeonics.http.filter;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 import aeonics.data.Data;
 import aeonics.entity.Message;
@@ -29,12 +30,12 @@ public class HeadersFilter extends Filter
 		}
 	}
 
-	public Class<? extends Filter.Response> entity() { return Type.class; }
+	protected Class<? extends HeadersFilter.Type> defaultEntity() { return HeadersFilter.Type.class; }
+	protected Supplier<? extends HeadersFilter.Type> defaultCreator() { return HeadersFilter.Type::new; }
 	
-	public Template<? extends Filter.Response> template()
+	public Template<? extends Filter.Type> template()
 	{
-		return new Template<Type>(Type.class, HeadersFilter.class, Filter.class)
-			.creator(Type::new)
+		return super.template()
 			.summary("Headers")
 			.description("Sets additional HTTP response headers. If the value of a header is empty or null, it will remove that response header instead.")
 			.add(new Parameter("headers")

@@ -8,6 +8,7 @@ package aeonics.http.filter;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
 
 import aeonics.data.Data;
@@ -71,12 +72,12 @@ public class GzipFilter extends Filter
 		}
 	}
 	
-	public Class<? extends Filter.Response> entity() { return Type.class; }
+	protected Class<? extends GzipFilter.Type> defaultEntity() { return GzipFilter.Type.class; }
+	protected Supplier<? extends GzipFilter.Type> defaultCreator() { return GzipFilter.Type::new; }
 	
-	public Template<? extends Filter.Response> template()
+	public Template<? extends Filter.Type> template()
 	{
-		return new Template<Type>(Type.class, GzipFilter.class, Filter.class)
-			.creator(Type::new)
+		return super.template()
 			.summary("GZip")
 			.description("Compresses the HTTP response if the client supports it. Media content (images, music, video) are not compressed because it is not worth it.");
 	}

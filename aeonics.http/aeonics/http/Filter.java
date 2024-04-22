@@ -12,7 +12,7 @@ import aeonics.entity.Message;
 import aeonics.template.Item;
 import aeonics.util.StringUtils;
 
-public abstract class Filter implements Item<Filter.Type>
+public abstract class Filter extends Item<Filter.Type>
 {
 	public static abstract class Type extends Entity
 	{
@@ -44,6 +44,8 @@ public abstract class Filter implements Item<Filter.Type>
 		 */
 		public final String category() { return StringUtils.toLowerCase(Filter.class); }
 	}
+	
+	protected Class<? extends Filter> category() { return Filter.class; }
 	
 	// =========================================
 	//
