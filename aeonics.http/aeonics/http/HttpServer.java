@@ -121,7 +121,7 @@ public class HttpServer extends Origin
 		}
 	}
 	
-	protected Class<? extends HttpServer.Type> defaultEntity() { return HttpServer.Type.class; }
+	protected Class<? extends HttpServer.Type> defaultTarget() { return HttpServer.Type.class; }
 	protected Supplier<? extends HttpServer.Type> defaultCreator() { return HttpServer.Type::new; }
 	
 	public Origin.Template template()

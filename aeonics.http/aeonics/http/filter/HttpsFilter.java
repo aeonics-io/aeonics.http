@@ -34,7 +34,7 @@ public class HttpsFilter extends Filter
 		}
 	}
 	
-	protected Class<? extends HttpsFilter.Type> defaultEntity() { return HttpsFilter.Type.class; }
+	protected Class<? extends HttpsFilter.Type> defaultTarget() { return HttpsFilter.Type.class; }
 	protected Supplier<? extends HttpsFilter.Type> defaultCreator() { return HttpsFilter.Type::new; }
 	
 	public Template<? extends Filter.Type> template()

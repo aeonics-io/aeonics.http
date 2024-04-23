@@ -99,7 +99,7 @@ public class HttpResponse extends Destination
 		}
 	}
 	
-	protected Class<? extends HttpResponse.Type> defaultEntity() { return HttpResponse.Type.class; }
+	protected Class<? extends HttpResponse.Type> defaultTarget() { return HttpResponse.Type.class; }
 	protected Supplier<? extends HttpResponse.Type> defaultCreator() { return HttpResponse.Type::new; }
 	
 	public Destination.Template template()

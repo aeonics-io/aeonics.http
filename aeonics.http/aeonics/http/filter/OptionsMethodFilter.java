@@ -30,7 +30,7 @@ public class OptionsMethodFilter extends Filter
 		}
 	}
 	
-	protected Class<? extends OptionsMethodFilter.Type> defaultEntity() { return OptionsMethodFilter.Type.class; }
+	protected Class<? extends OptionsMethodFilter.Type> defaultTarget() { return OptionsMethodFilter.Type.class; }
 	protected Supplier<? extends OptionsMethodFilter.Type> defaultCreator() { return OptionsMethodFilter.Type::new; }
 	
 	public Template<? extends Filter.Type> template()

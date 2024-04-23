@@ -2,7 +2,6 @@ package aeonics.http;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,29 +42,22 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		public Type() { super(); }
 		
 		/**
-		 * List of accepted HTTP methods
+		 * Accepted HTTP method
 		 */
-		private List<String> methods = new ArrayList<>();
+		private String method = "GET";
 		
 		/**
-		 * Returns the list of HTTP methods this endpoint accepts
-		 * @return the list of HTTP methods this endpoint accepts
+		 * Returns the HTTP method this endpoint accepts
+		 * @return the HTTP method this endpoint accepts
 		 */
-		public List<String> methods() { return methods; }
+		public String method() { return method; }
 		
 		/**
-		 * Sets the list of HTTP methods this endpoint accepts
-		 * @param value the list of HTTP methods this endpoint accepts
-		 * @return this
-		 */
-		public <T extends Endpoint.Type> T methods(List<String> value) { methods = value; return (T) this; }
-		
-		/**
-		 * Set the single HTTP method this endpoint accepts
+		 * Set the HTTP method this endpoint accepts
 		 * @param value the HTTP method this endpoint accepts
 		 * @return this
 		 */
-		public <T extends Endpoint.Type> T method(String value) { methods = Collections.singletonList(value); return (T) this; }
+		public <T extends Endpoint.Type> T method(String value) { method = value; return (T) this; }
 		
 		/**
 		 * The URL of this endpoint
@@ -121,6 +113,9 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
 		 */
 		public abstract Data process(Message request) throws Throwable;
+		
+		public String name() { return method() + " " + url(); }
+		public <T extends Entity> T name(String value) { return (T) this; }
 		
 		/**
 		 * Hardcoded category to the {@link Endpoint} class
@@ -565,7 +560,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			}
 		}
 	
-		protected Class<? extends Rest.Type> defaultEntity() { return Rest.Type.class; }
+		protected Class<? extends Rest.Type> defaultTarget() { return Rest.Type.class; }
 		protected Supplier<? extends Rest.Type> defaultCreator() { return Rest.Type::new; }
 		
 		public Template<? extends Endpoint.Type> template()
@@ -1162,7 +1157,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			}
 		}
 		
-		protected Class<? extends File.Type> defaultEntity() { return File.Type.class; }
+		protected Class<? extends File.Type> defaultTarget() { return File.Type.class; }
 		protected Supplier<? extends File.Type> defaultCreator() { return File.Type::new; }
 		
 		public Template<? extends Endpoint.Type> template()
@@ -1183,11 +1178,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					.summary("URL prefix")
 					.description("The URL prefix to filter which requests can be answered by this endpoint. The prefix filter should start with '/'.")
 					.optional(true).defaultValue(Data.of("/")))
-				.builder((data, instance) -> 
-				{
-					instance.methods().add("GET");
-					Registry.add(instance);
-				});
+				;
 		}
 	}
 }

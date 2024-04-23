@@ -125,7 +125,7 @@ public class Router extends Action
 				Endpoint.Type e = (Endpoint.Type) x.a;
 				if( e == null ) continue;
 				
-				if( !e.methods().contains(method) ) continue;
+				if( !e.method().equals(method) ) continue;
 				if( !e.matches(path) ) continue;
 
 				try( AutoCloseable ns = Manager.of(Monitor.class).ns(e) )
@@ -277,7 +277,7 @@ public class Router extends Action
 		}
 	}
 	
-	protected Class<? extends Router.Type> defaultEntity() { return Router.Type.class; }
+	protected Class<? extends Router.Type> defaultTarget() { return Router.Type.class; }
 	protected Supplier<? extends Router.Type> defaultCreator() { return Router.Type::new; }
 	
 	public Action.Template template()

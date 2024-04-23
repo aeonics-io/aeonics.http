@@ -30,7 +30,7 @@ public class HeadersFilter extends Filter
 		}
 	}
 
-	protected Class<? extends HeadersFilter.Type> defaultEntity() { return HeadersFilter.Type.class; }
+	protected Class<? extends HeadersFilter.Type> defaultTarget() { return HeadersFilter.Type.class; }
 	protected Supplier<? extends HeadersFilter.Type> defaultCreator() { return HeadersFilter.Type::new; }
 	
 	public Template<? extends Filter.Type> template()

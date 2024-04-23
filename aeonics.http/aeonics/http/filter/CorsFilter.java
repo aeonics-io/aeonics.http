@@ -64,7 +64,7 @@ public class CorsFilter extends Filter
 		}
 	}
 
-	protected Class<? extends CorsFilter.Type> defaultEntity() { return CorsFilter.Type.class; }
+	protected Class<? extends CorsFilter.Type> defaultTarget() { return CorsFilter.Type.class; }
 	protected Supplier<? extends CorsFilter.Type> defaultCreator() { return CorsFilter.Type::new; }
 	
 	public Template<? extends Filter.Type> template()

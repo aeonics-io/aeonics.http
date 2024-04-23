@@ -72,7 +72,7 @@ public class GzipFilter extends Filter
 		}
 	}
 	
-	protected Class<? extends GzipFilter.Type> defaultEntity() { return GzipFilter.Type.class; }
+	protected Class<? extends GzipFilter.Type> defaultTarget() { return GzipFilter.Type.class; }
 	protected Supplier<? extends GzipFilter.Type> defaultCreator() { return GzipFilter.Type::new; }
 	
 	public Template<? extends Filter.Type> template()

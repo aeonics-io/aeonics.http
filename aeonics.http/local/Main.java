@@ -23,6 +23,7 @@ import aeonics.manager.Manager;
 import aeonics.template.Factory;
 import aeonics.manager.Lifecycle.Phase;
 import aeonics.util.Callback;
+import aeonics.util.Hardware;
 
 public class Main extends Plugin
 {
@@ -54,7 +55,7 @@ public class Main extends Plugin
 	private static void onBeforeRun()
 	{
 		if( !Manager.of(Config.class).contains(Router.class, "default") )
-			Manager.of(Config.class).set(Router.class, "default", Data.of(new Router().template().build().id()));
+			Manager.of(Config.class).set(Router.class, "default", Data.of(new Router().template().build().name("Default router").id()));
 	}
 	
 	private static void onRun()
@@ -72,27 +73,28 @@ public class Main extends Plugin
 				.method("GET")
 				)
 			.addRelation("endpoints", new Endpoint.File().template().build(Data.map().put("filter", "/file/"))
-				.addRelation("storage", new Storage.File().template().build(Data.map().put("root", "data"))
+				.addRelation("storage", new Storage.File().template().build(Data.map().put("root", "data")).name("Web root storage")
 				))
-			.addRelation("filters", new CorsFilter().template().build())
-			.addRelation("filters", new GzipFilter().template().build())
-			.addRelation("filters", new HeadersFilter().template().build())
-			.addRelation("filters", new OptionsMethodFilter().template().build())
-			.addRelation("destinations", new HttpResponse().template().build(), 
+			.addRelation("filters", new CorsFilter().template().build().name("CORS Filter"))
+			.addRelation("filters", new GzipFilter().template().build().name("GZIP Filter"))
+			.addRelation("filters", new HeadersFilter().template().build().name("Custom headers filter"))
+			.addRelation("filters", new OptionsMethodFilter().template().build().name("Options method filter"))
+			.addRelation("destinations", new HttpResponse().template().build().name("Http responder"), 
 				Data.map().put("input", "response").put("output", "response"))
 		;
 		
-		String queue = new Queue().template().build(Data.map().put("concurrency", "8")
+		String queue = new Queue().template().build(Data.map().put("concurrency", Hardware.CPU.cores())
 			.put("actions", Data.list().add(Data.map().put("id", router.id()).put("input", "request")))
-			).id();
-		String topic = new Topic().template().build(Data.map().put("name", "http").put("queues", Data.list()
+			).name("Http request queue").id();
+		String topic = new Topic().template().build(Data.map().put("queues", Data.list()
 			.add(Data.map().put("id", queue).put("binding", "#")))
-			).id();
+			).name("http").id();
 		
 		new HttpServer().template().build(Data.map()
 			.put("topics", Data.list()
 				.add(Data.map()
 					.put("id", topic)
-					.put("channel", "request"))));
+					.put("channel", "request"))))
+			.name("Http Server");
 	}
 }
