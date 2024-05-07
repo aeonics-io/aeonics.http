@@ -21,6 +21,7 @@ public class HttpResponse extends Destination
 		{
 			if( !input.equals("response") ) return;
 			
+			int code = 0;
 			try
 			{
 				Data c = message.content();
@@ -46,6 +47,8 @@ public class HttpResponse extends Destination
 				else
 					h.remove("Content-Type");
 				
+				code = c.asInt("code");
+				
 				ByteArrayOutputStream out = new ByteArrayOutputStream();
 				StringBuilder sb = new StringBuilder();
 				
@@ -53,7 +56,7 @@ public class HttpResponse extends Destination
 				sb.append("HTTP/");
 				sb.append(c.asString("version"));
 				sb.append(' ');
-				sb.append(c.asString("code"));
+				sb.append(code);
 				sb.append(' ');
 				sb.append(c.asString("status"));
 				sb.append("\r\n");
@@ -86,7 +89,13 @@ public class HttpResponse extends Destination
 				sb = null;
 				out.write(body);
 				
-				message.connection().write(out.toByteArray());
+				try { message.connection().write(out.toByteArray()); }
+				catch(Exception e)
+				{
+					// this can happen because the client closes the connection before the end of the response
+					if( code >= 400 ) return;
+					else throw e;
+				}
 				
 				if( h.asString("Connection").equalsIgnoreCase("close") )
 					message.connection().close();

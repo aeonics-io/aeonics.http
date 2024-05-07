@@ -38,6 +38,7 @@ public class HttpServer extends Origin
 					.withAlpn(Collections.singletonList("http/1.1,http/1.0"))
 					.withServerCertificate(crt.asString(), key.asString()));
 			}
+			final boolean tls = server.isSecure();
 			
 			server.onAccept().then((connection) ->
 			{
@@ -56,6 +57,8 @@ public class HttpServer extends Origin
 					try
 					{
 						authenticate(m);
+						authorize(m);
+						m.metadata().put("tls", tls);
 						emit(m, "request");
 					}
 					catch(SecurityException e)
@@ -68,13 +71,14 @@ public class HttpServer extends Origin
 							sb.append("HTTP/");
 							sb.append(m.content().asString("version"));
 							sb.append(" 401 Unauthorized\r\n");
-							sb.append("WWW-Authenticate: Bearer scope=\"topic http\"\r\n\r\n");
+							sb.append("WWW-Authenticate: Bearer scope=\"topic http\"\r\nContent-Length: 0\r\n\r\n");
 						}
 						else
 						{
 							sb.append("HTTP/");
 							sb.append(m.content().asString("version"));
 							sb.append(" 403 Forbidden\r\n");
+							sb.append("Content-Length: 0\r\n\r\n");
 						}
 						
 						try { m.connection().write(sb.toString()); }
@@ -118,6 +122,21 @@ public class HttpServer extends Origin
 				}
 			}
 			request.user(current.id());
+		}
+		
+		/**
+		 * Delegate the security check to pre-authorize the request.
+		 * 
+		 * @param request the input request
+		 */
+		private void authorize(Message request)
+		{
+			if( !Manager.of(Security.class).granted(
+				Registry.of(User.class).get(request.user()), 
+				"http", 
+				Data.map().put("method", request.content().asString("method"))
+						  .put("path", request.content().asString("path"))) )
+				throw new SecurityException("Access denied");
 		}
 	}
 	

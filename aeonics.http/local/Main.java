@@ -7,6 +7,8 @@ import aeonics.entity.Queue;
 import aeonics.entity.Registry;
 import aeonics.entity.Storage;
 import aeonics.entity.Topic;
+import aeonics.entity.security.Policy;
+import aeonics.entity.security.Rule;
 import aeonics.http.Endpoint;
 import aeonics.http.Endpoint.Rest;
 import aeonics.http.HttpServer;
@@ -60,6 +62,10 @@ public class Main extends Plugin
 	
 	private static void onRun()
 	{
+		Policy.Type policy = new Policy.Allow().template().build(Data.map().put("scope", "http"));
+		policy.name("Allow http for everyone by default");
+		policy.addRelation("rule", new Rule.MatchAll().template().build().name("Everyone"));
+		
 		Action.Type router = Registry.of(Action.class).get(Manager.of(Config.class).get(Router.class, "default").asString());
 		router
 			.addRelation("endpoints", new Endpoint.Rest() { }
@@ -72,8 +78,8 @@ public class Main extends Plugin
 				.url("/api/ping")
 				.method("GET")
 				)
-			.addRelation("endpoints", new Endpoint.File().template().build(Data.map().put("filter", "/file/"))
-				.addRelation("storage", new Storage.File().template().build(Data.map().put("root", "data")).name("Web root storage")
+			.addRelation("endpoints", new Endpoint.File().template().build(Data.map().put("filter", "/"))
+				.addRelation("storage", new Storage.File().template().build(Data.map().put("root", "www")).name("Web root storage")
 				))
 			.addRelation("filters", new CorsFilter().template().build().name("CORS Filter"))
 			.addRelation("filters", new GzipFilter().template().build().name("GZIP Filter"))

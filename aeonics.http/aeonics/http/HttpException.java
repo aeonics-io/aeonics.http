@@ -2,7 +2,7 @@ package aeonics.http;
 
 import aeonics.data.Data;
 
-public class HttpException extends Exception
+public class HttpException extends RuntimeException
 {
 	public int code;
 	public Data data;

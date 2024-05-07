@@ -5,10 +5,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,6 +13,12 @@ import aeonics.entity.Entity;
 import aeonics.entity.Message;
 import aeonics.entity.Registry;
 import aeonics.entity.Storage;
+import aeonics.entity.security.Functions.BiConsumer;
+import aeonics.entity.security.Functions.BiFunction;
+import aeonics.entity.security.Functions.Function;
+import aeonics.entity.security.Functions.Supplier;
+import aeonics.entity.security.Functions.TriConsumer;
+import aeonics.entity.security.Functions.TriFunction;
 import aeonics.entity.security.User;
 import aeonics.template.Item;
 import aeonics.template.Parameter;
@@ -258,13 +260,18 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			{
 				if( url == null || url.isEmpty() ) return false;
 				if( wildcardUrl == null ) return url.equals(url());
-				return StringUtils.simplePathMatches(wildcardUrl, url);
+				return StringUtils.simplePathMatches(wildcardUrl, url, urlWordWildcards, urlGlobalWildcards, urlNegators, urlWordDelimiters);
 			}
+			
+			private final static char[] urlWordWildcards = new char[] { '*' };
+			private final static char[] urlGlobalWildcards = new char[] { '#' };
+			private final static char[] urlNegators = new char[] { '!' };
+			private final static char[] urlWordDelimiters = new char[] { '/' };
 			
 			/**
 			 * Handler in case of error
 			 */
-			private BiFunction<Tuple<Data, User.Type>, Throwable, Data> errorHandler = null;
+			private TriFunction<Data, User.Type, Throwable, Data> errorHandler = null;
 			
 			/**
 			 * Sets an error handler for this endpoint. This is the opportunity to catch the error and return another response instead.
@@ -279,7 +286,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param handler the error handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Rest.Type> T error(BiFunction<Tuple<Data, User.Type>, Throwable, Data> handler) { errorHandler = handler; return (T) this; }
+			public <T extends Endpoint.Rest.Type> T error(TriFunction<Data, User.Type, Throwable, Data> handler) { errorHandler = handler; return (T) this; }
 			
 			/**
 			 * Sets an error handler for this endpoint.
@@ -289,7 +296,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param handler the error handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Rest.Type> T error(BiConsumer<Tuple<Data, User.Type>, Throwable> handler) { return error((request, error) -> { handler.accept(request, error); return null; }); }
+			public <T extends Endpoint.Rest.Type> T error(TriConsumer<Data, User.Type, Throwable> handler) { return error((request, user, error) -> { handler.accept(request, user, error); return null; }); }
 			
 			/**
 			 * Handler called before processing the request
@@ -412,12 +419,12 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				}
 				
 				Data response = null;
-				try { response = process(params, request); }
+				try { response = process(params, user, request); }
 				catch(Throwable t)
 				{
 					if( errorHandler != null )
 					{
-						response = errorHandler.apply(Tuple.of(params, user), t);
+						response = errorHandler.apply(params, user, t);
 						if( response == null ) throw t;
 						else return response;
 					}
@@ -434,37 +441,66 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			}
 			
 			/**
-			 * Process function with 2 parameters
+			 * Process function with 3 parameters
 			 */
-			private BiFunction<Data, Message, Data> processor1 = null;
+			private TriFunction<Data, User.Type, Message, Data> processor1 = null;
 			
 			/**
-			 * Sets the process function that will replace the {@link #process(Data, Message)} method.
+			 * Sets the process function that will replace the {@link #process(Data, User.Type, Message)} method.
 			 * @param <T> this
-			 * @param processor the process function with 2 input parameters
+			 * @param processor the process function with 3 input parameters
 			 * @return this
 			 */
-			public <T extends Endpoint.Rest.Type> T process(BiFunction<Data, Message, Data> processor) { this.processor1 = processor; return (T) this; }
+			public <T extends Endpoint.Rest.Type> T process(TriFunction<Data, User.Type, Message, Data> processor) { this.processor1 = processor; return (T) this; }
 			
 			/**
 			 * Processes the request and generates a response.
 			 * You may override this method if you only need the validated input parameters but also the original message data.
 			 * @param params the validated input parameters
+			 * @param user the associated user
 			 * @param request the original message data
 			 * @return the endpoint response
 			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
 			 * @see #process(Message)
 			 */
-			public Data process(Data params, Message request) throws Throwable
+			public Data process(Data params, User.Type user, Message request) throws Throwable
 			{
-				if( processor1 != null ) return processor1.apply(params, request);
+				if( processor1 != null ) return processor1.apply(params, user, request);
+				else return process(params, user);
+			}
+			
+			/**
+			 * Process function with 2 parameters
+			 */
+			private BiFunction<Data, User.Type, Data> processor2 = null;
+			
+			/**
+			 * Sets the process function that will replace the {@link #process(Data, User.Type)} method.
+			 * @param <T> this
+			 * @param processor the process function with 2 input parameters
+			 * @return this
+			 */
+			public <T extends Endpoint.Rest.Type> T process(BiFunction<Data, User.Type, Data> processor) { this.processor2 = processor; return (T) this; }
+			
+			/**
+			 * Processes the request and generates a response.
+			 * You may override this method if you only need the validated input parameters.
+			 * @param params the validated input parameters
+			 * @param user the associated user
+			 * @return the endpoint response
+			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
+			 * @see #process(Message)
+			 */
+			public Data process(Data params, User.Type user) throws Throwable
+			{
+				if( processor2 != null ) return processor2.apply(params);
 				else return process(params);
 			}
 			
 			/**
 			 * Process function with 1 parameter
 			 */
-			private Function<Data, Data> processor2 = null;
+			private Function<Data, Data> processor3 = null;
 			
 			/**
 			 * Sets the process function that will replace the {@link #process(Data)} method.
@@ -472,7 +508,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param processor the process function with 1 input parameter
 			 * @return this
 			 */
-			public <T extends Endpoint.Rest.Type> T process(Function<Data, Data> processor) { this.processor2 = processor; return (T) this; }
+			public <T extends Endpoint.Rest.Type> T process(Function<Data, Data> processor) { this.processor3 = processor; return (T) this; }
 			
 			/**
 			 * Processes the request and generates a response.
@@ -484,14 +520,14 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 */
 			public Data process(Data params) throws Throwable
 			{
-				if( processor2 != null ) return processor2.apply(params);
+				if( processor3 != null ) return processor3.apply(params);
 				else return process();
 			}
 			
 			/**
 			 * Process function without parameters
 			 */
-			private Supplier<Data> processor3 = null;
+			private Supplier<Data> processor4 = null;
 			
 			/**
 			 * Sets the process function that will replace the {@link #process()} method.
@@ -499,7 +535,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param processor the process function without input parameters
 			 * @return this
 			 */
-			public <T extends Endpoint.Rest.Type> T process(Supplier<Data> processor) { this.processor3 = processor; return (T) this; }
+			public <T extends Endpoint.Rest.Type> T process(Supplier<Data> processor) { this.processor4 = processor; return (T) this; }
 			
 			/**
 			 * Processes the request and generates a response.
@@ -510,7 +546,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 */
 			public Data process() throws Throwable
 			{
-				if( processor3 != null ) return processor3.get();
+				if( processor4 != null ) return processor4.get();
 				else return null;
 			}
 			
@@ -561,7 +597,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		}
 	
 		protected Class<? extends Rest.Type> defaultTarget() { return Rest.Type.class; }
-		protected Supplier<? extends Rest.Type> defaultCreator() { return Rest.Type::new; }
+		protected java.util.function.Supplier<? extends Rest.Type> defaultCreator() { return Rest.Type::new; }
 		
 		public Template<? extends Endpoint.Type> template()
 		{
@@ -596,8 +632,11 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				
 				Storage.Type store = store();
 				if( store == null ) return false;
+				
+				if( url.isBlank() || url.endsWith("/") ) url += "index.html";
 
-				return store.contains(valueOf("path").asString() + "/" + url.substring(filter.length()));
+				return store.contains(valueOf("path").asString() + "/" + url.substring(filter.length()))
+					|| store.contains(valueOf("path").asString() + "/" + url.substring(filter.length()) + ".html");
 			}
 			
 			public Data process(Message request) throws Throwable
@@ -605,7 +644,12 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				String filter = valueOf("filter").asString();
 				Storage.Type store = store();
 				if( store == null ) throw new HttpException(404);
-				String path = valueOf("path").asString() + "/" + request.content().asString("path").substring(filter.length());
+				
+				String path = request.content().asString("path");
+				if( path.isBlank() || path.endsWith("/") ) path += "index.html";
+				path = valueOf("path").asString() + "/" + path.substring(filter.length());
+				if( !store.contains(path) ) path += ".html";
+				
 				byte[] file = store.get(path);
 				if( file == null ) throw new HttpException(404);
 				
@@ -1158,7 +1202,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		}
 		
 		protected Class<? extends File.Type> defaultTarget() { return File.Type.class; }
-		protected Supplier<? extends File.Type> defaultCreator() { return File.Type::new; }
+		protected java.util.function.Supplier<? extends File.Type> defaultCreator() { return File.Type::new; }
 		
 		public Template<? extends Endpoint.Type> template()
 		{
