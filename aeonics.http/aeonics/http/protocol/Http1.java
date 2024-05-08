@@ -269,7 +269,7 @@ public class Http1 implements HttpProtocol
 				return;
 			}
 			else if( b == '\r' || b == '\n' )
-				throw new HttpParseException("Unexpected EOL", 400);
+				throw new HttpParseException("Unexpected EOL in URI", 400);
 			else if( b == '%' || b == '+')
 				state.isEncoded = true;
 		}
@@ -316,7 +316,7 @@ public class Http1 implements HttpProtocol
 				state.mode = Mode.MODE_4_QUERYSTRING_VALUE;
 			}
 			else if( b == '&' || b == ' ' ) // end value start new name (or end)
-			{
+			{				
 				if( state.mode == Mode.MODE_4_QUERYSTRING_NAME ) // name without value
 				{
 					if( state.partial.size() > 0 )
@@ -327,20 +327,26 @@ public class Http1 implements HttpProtocol
 					}
 					else
 					{
-						if( state.i == state.mark ) continue; // empty name and value in case of &&
-						state.lastName = new String(data, state.mark, state.i - state.mark, StandardCharsets.US_ASCII);
+						if( state.i == state.mark && b == '&' ) continue; // empty name and value in case of &&
+						else if( state.i > state.mark )
+							state.lastName = new String(data, state.mark, state.i - state.mark, StandardCharsets.US_ASCII);
+						else
+							state.lastName = null; // case of ? with nothing after
 					}
 					
-					if( state.isEncoded )
+					if( state.lastName != null )
 					{
-						state.lastName = java.net.URLDecoder.decode(state.lastName, StandardCharsets.UTF_8);
-						state.isEncoded = false;
+						if( state.isEncoded )
+						{
+							state.lastName = java.net.URLDecoder.decode(state.lastName, StandardCharsets.UTF_8);
+							state.isEncoded = false;
+						}
+						
+						state.request.get("get").put(state.lastName, Data.empty());
+						
+						state.lastName = null;
+						state.mark = state.i+1;
 					}
-					
-					state.request.get("get").put(state.lastName, Data.empty());
-					
-					state.lastName = null;
-					state.mark = state.i+1;
 				}
 				else
 				{
@@ -378,7 +384,7 @@ public class Http1 implements HttpProtocol
 				}
 			}
 			else if( b == '\r' || b == '\n' )
-				throw new HttpParseException("Unexpected EOL", 400);
+				throw new HttpParseException("Unexpected EOL in Query String " + state.mode + " -- " + new String(data), 400);
 			else if( b == '%' || b == '+')
 				state.isEncoded = true;
 		}

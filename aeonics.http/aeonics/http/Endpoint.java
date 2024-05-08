@@ -13,12 +13,6 @@ import aeonics.entity.Entity;
 import aeonics.entity.Message;
 import aeonics.entity.Registry;
 import aeonics.entity.Storage;
-import aeonics.entity.security.Functions.BiConsumer;
-import aeonics.entity.security.Functions.BiFunction;
-import aeonics.entity.security.Functions.Function;
-import aeonics.entity.security.Functions.Supplier;
-import aeonics.entity.security.Functions.TriConsumer;
-import aeonics.entity.security.Functions.TriFunction;
 import aeonics.entity.security.User;
 import aeonics.template.Item;
 import aeonics.template.Parameter;
@@ -26,6 +20,12 @@ import aeonics.template.Relationship;
 import aeonics.template.Template;
 import aeonics.util.StringUtils;
 import aeonics.util.Tuple;
+import aeonics.util.Functions.BiConsumer;
+import aeonics.util.Functions.BiFunction;
+import aeonics.util.Functions.Function;
+import aeonics.util.Functions.Supplier;
+import aeonics.util.Functions.TriConsumer;
+import aeonics.util.Functions.TriFunction;
 
 /**
  * This item represents an HTTP endpoint that will produce a response to a request.
@@ -612,7 +612,6 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 	// FILE ENDPOINT
 	//
 	// =========================================
-		
 	
 	public static class File extends Endpoint
 	{
@@ -635,8 +634,9 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				
 				if( url.isBlank() || url.endsWith("/") ) url += "index.html";
 
-				return store.contains(valueOf("path").asString() + "/" + url.substring(filter.length()))
-					|| store.contains(valueOf("path").asString() + "/" + url.substring(filter.length()) + ".html");
+				return store.containsEntry(valueOf("path").asString() + "/" + url.substring(filter.length()))
+					|| store.containsEntry(valueOf("path").asString() + "/" + url.substring(filter.length()) + ".html")
+					|| store.containsEntry(valueOf("path").asString() + "/" + url.substring(filter.length()) + "/index.html");
 			}
 			
 			public Data process(Message request) throws Throwable
@@ -648,7 +648,25 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				String path = request.content().asString("path");
 				if( path.isBlank() || path.endsWith("/") ) path += "index.html";
 				path = valueOf("path").asString() + "/" + path.substring(filter.length());
-				if( !store.contains(path) ) path += ".html";
+				if( !store.containsEntry(path) )
+				{
+					if( store.containsEntry(path + ".html") ) path += ".html";
+					else if( store.containsPath(path) && store.containsEntry(path + "/index.html") )
+					{
+						// since /foo/bar is a directory, redirect /foo/bar?a=42 to /foo/bar/?a=42 (add trailing /)
+						String url = (request.metadata().asBool("tls") ? "https://" : "http://") + 
+							request.content().get("headers").asString("host") + 
+							request.content().asString("path");
+						int qm = url.indexOf('?');
+						if( qm >= 0 ) url = url.substring(0, qm) + "/" + url.substring(qm);
+						else url += "/";
+						
+						return Data.map()
+							.put("isHttpResponse", true)
+							.put("code", 301)
+							.put("headers", Data.map().put("Location", url));
+					}
+				}
 				
 				byte[] file = store.get(path);
 				if( file == null ) throw new HttpException(404);

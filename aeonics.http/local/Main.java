@@ -1,5 +1,8 @@
 package local;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 import aeonics.Plugin;
 import aeonics.data.Data;
 import aeonics.entity.Action;
@@ -23,9 +26,12 @@ import aeonics.manager.Config;
 import aeonics.manager.Lifecycle;
 import aeonics.manager.Manager;
 import aeonics.template.Factory;
+import aeonics.template.Parameter;
 import aeonics.manager.Lifecycle.Phase;
+import aeonics.manager.Logger;
 import aeonics.util.Callback;
 import aeonics.util.Hardware;
+import aeonics.util.Tuple;
 
 public class Main extends Plugin
 {
@@ -35,9 +41,8 @@ public class Main extends Plugin
 	public void start()
 	{
 		Manager.of(Lifecycle.class).on(Phase.LOAD, Callback.once(() -> onLoad()));
-		
+		Manager.of(Lifecycle.class).on(Phase.CONFIG, Callback.once(() -> onConfig()));
 		Manager.of(Lifecycle.class).on(Phase.RUN, Callback.once(() -> onRun()));
-		
 		Manager.of(Lifecycle.class).before(Phase.RUN, Callback.once(() -> onBeforeRun()));
 	}
 	
@@ -52,6 +57,20 @@ public class Main extends Plugin
 		Factory.add(new OptionsMethodFilter());
 		Factory.add(new HttpServer());
 		Factory.add(new HttpResponse());
+	}
+	
+	private static void onConfig()
+	{
+		Config c = Manager.of(Config.class);
+		
+		c.declare(HttpServer.class, new Parameter("default.tls.certificate")
+			.summary("Default HTTPS certificate")
+			.description("The certificate to use by the default HTTP Server entity. The certificate should be provided in PEM-encoded base64 format. It may be the path to a local file.")
+			.defaultValue(Data.empty()));
+		c.declare(HttpServer.class, new Parameter("default.tls.private")
+			.summary("Default HTTPS private key")
+			.description("The private key to use by the default HTTP Server entity. The private key should be provided in PEM-encoded base64 format. It may be the path to a local file.")
+			.defaultValue(Data.empty()));
 	}
 	
 	private static void onBeforeRun()
@@ -96,11 +115,56 @@ public class Main extends Plugin
 			.add(Data.map().put("id", queue).put("binding", "#")))
 			).name("http").id();
 		
+		// check default https certificate/key
+		Config c = Manager.of(Config.class);
+		Data crt = c.get(HttpServer.class, "default.tls.certificate");
+		Data key = c.get(HttpServer.class, "default.tls.private");
+		if( !crt.isEmpty() && !key.isEmpty() )
+		{
+			try
+			{
+				if( Files.isRegularFile(Paths.get(crt.asString())) )
+					crt = Data.of(new String(Files.readAllBytes(Paths.get(crt.asString()))));
+				if( Files.isRegularFile(Paths.get(key.asString())) )
+					key = Data.of(new String(Files.readAllBytes(Paths.get(key.asString()))));
+			}
+			catch(Exception e)
+			{
+				crt = key = Data.empty();
+			}
+		}
+		if( crt.isEmpty() || key.isEmpty() )
+		{
+			Tuple<Data, Data> t = generateSelfSignedCertificate();
+			crt = t.a;
+			key = t.b;
+		}
+		
 		new HttpServer().template().build(Data.map()
+			.put("port", 443)
+			.put("certificate", crt)
+			.put("key", key)
 			.put("topics", Data.list()
 				.add(Data.map()
 					.put("id", topic)
 					.put("channel", "request"))))
 			.name("Http Server");
+	}
+	
+	private static Tuple<Data, Data> generateSelfSignedCertificate()
+	{
+		long start = System.currentTimeMillis();
+		Manager.of(Logger.class).info(HttpServer.class, "Generating self-signed HTTPS certificate...");
+		try
+		{
+			Tuple<Data, Data> t = DirtySelfSignedCertificateGenerator.generate("localhost");
+			Manager.of(Logger.class).info(HttpServer.class, "Certificate generation completed in {}ms", System.currentTimeMillis()-start);
+			return t;
+		}
+		catch(Exception e)
+		{
+			Manager.of(Logger.class).severe(HttpServer.class, e);
+			throw new RuntimeException("Certificate generation failed");
+		}
 	}
 }

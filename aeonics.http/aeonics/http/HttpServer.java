@@ -1,7 +1,7 @@
 package aeonics.http;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.function.Supplier;
 
 import aeonics.data.Data;
@@ -35,7 +35,7 @@ public class HttpServer extends Origin
 			else
 			{
 				server = Manager.of(Network.class).server(valueOf("address").asString(), valueOf("port").asInt(), new SecurityOptions()
-					.withAlpn(Collections.singletonList("http/1.1,http/1.0"))
+					.withAlpn(Arrays.asList("http/1.1","http/1.0"))
 					.withServerCertificate(crt.asString(), key.asString()));
 			}
 			final boolean tls = server.isSecure();
