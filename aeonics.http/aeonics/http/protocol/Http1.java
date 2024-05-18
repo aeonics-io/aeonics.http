@@ -235,7 +235,7 @@ public class Http1 implements HttpProtocol
 				throw new HttpParseException("First line too long", 414);
 			
 			b = data[state.i];
-			if( b == '?' || b == ' ' )
+			if( b == '?' || b == ' ' || b == '#' )
 			{
 				String path;
 				if( state.partial.size() > 0 )
@@ -265,7 +265,7 @@ public class Http1 implements HttpProtocol
 				state.request.put("path", path);
 				
 				state.mark = ++state.i;
-				state.mode = (b == '?' ? Mode.MODE_4_QUERYSTRING_NAME : Mode.MODE_5_VERSION);
+				state.mode = (b == '?' || b == '#' ? Mode.MODE_4_QUERYSTRING_NAME : Mode.MODE_5_VERSION);
 				return;
 			}
 			else if( b == '\r' || b == '\n' )
@@ -699,11 +699,11 @@ public class Http1 implements HttpProtocol
 							request.get("files").put(name, Data.map()
 								.put("name", filename)
 								.put("mime", mime)
-								.put("content", new String(data, mark, i - mark - bboundary.length - (end?2:3), StandardCharsets.ISO_8859_1))
+								.put("content", new String(data, mark, i - mark - bboundary.length - (end?1:2), StandardCharsets.ISO_8859_1))
 							);
 						}
 						else
-							request.get("post").put(name, new String(data, mark, i - mark - bboundary.length - 3, StandardCharsets.ISO_8859_1));
+							request.get("post").put(name, new String(data, mark, i - mark - bboundary.length - 2, StandardCharsets.ISO_8859_1));
 						
 						name = null;
 						filename = null;
