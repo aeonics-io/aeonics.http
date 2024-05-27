@@ -32,7 +32,8 @@ public class OptionsMethodFilter extends Filter
 	
 	protected Class<? extends OptionsMethodFilter.Type> defaultTarget() { return OptionsMethodFilter.Type.class; }
 	protected Supplier<? extends OptionsMethodFilter.Type> defaultCreator() { return OptionsMethodFilter.Type::new; }
-	
+
+	@Override
 	public Template<? extends Filter.Type> template()
 	{
 		return super.template()

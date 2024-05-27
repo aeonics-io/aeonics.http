@@ -14,7 +14,7 @@ import aeonics.util.StringUtils;
 
 public abstract class Filter extends Item<Filter.Type>
 {
-	public static abstract class Type extends Entity
+	public abstract static class Type extends Entity
 	{
 		/**
 		 * Filter the requests to perform pre-endpoint treatments.
@@ -42,6 +42,7 @@ public abstract class Filter extends Item<Filter.Type>
 		/**
 		 * Hardcoded category to the {@link Filter} class
 		 */
+		@Override
 		public final String category() { return StringUtils.toLowerCase(Filter.class); }
 	}
 	
@@ -53,12 +54,12 @@ public abstract class Filter extends Item<Filter.Type>
 	//
 	// =========================================
 	
-	public static abstract class Request extends Type
+	public abstract static class Request extends Type
 	{
 		public Data filter(Message request, Data response) { return null; }
 	}
 	
-	public static abstract class Response extends Type
+	public abstract static class Response extends Type
 	{
 		public Data filter(Message request) { return null; }
 	}

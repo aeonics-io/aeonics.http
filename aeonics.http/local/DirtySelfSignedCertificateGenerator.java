@@ -3,6 +3,7 @@ package local;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
@@ -24,6 +25,8 @@ import aeonics.util.Tuple;
  */
 public class DirtySelfSignedCertificateGenerator 
 {
+	private DirtySelfSignedCertificateGenerator() { /* no instances */ }
+	
 	private static final byte INTEGER_TAG = 0x02;
     private static final byte BIT_STRING_TAG = 0x03;
     private static final byte NULL_TAG = 0x05;
@@ -59,7 +62,7 @@ public class DirtySelfSignedCertificateGenerator
     	TimeZone tz = TimeZone.getTimeZone("GMT");
     	SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss'Z'", Locale.US);
         sdf.setTimeZone(tz);
-        byte[] time = (sdf.format(date)).getBytes("ISO-8859-1");
+        byte[] time = (sdf.format(date)).getBytes(StandardCharsets.ISO_8859_1);
         
         return encode(GENERALIZED_TIME_TAG, time);
     }

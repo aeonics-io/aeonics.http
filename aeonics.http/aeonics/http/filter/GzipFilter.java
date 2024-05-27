@@ -74,7 +74,8 @@ public class GzipFilter extends Filter
 	
 	protected Class<? extends GzipFilter.Type> defaultTarget() { return GzipFilter.Type.class; }
 	protected Supplier<? extends GzipFilter.Type> defaultCreator() { return GzipFilter.Type::new; }
-	
+
+	@Override
 	public Template<? extends Filter.Type> template()
 	{
 		return super.template()

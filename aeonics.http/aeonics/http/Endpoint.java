@@ -41,7 +41,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		/**
 		 * Empty constructor
 		 */
-		public Type() { super(); }
+		protected Type() { super(); }
 		
 		/**
 		 * Accepted HTTP method
@@ -116,12 +116,15 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		 */
 		public abstract Data process(Message request) throws Throwable;
 		
+		@Override
 		public String name() { return method() + " " + url(); }
+		@Override
 		public <T extends Entity> T name(String value) { return (T) this; }
 		
 		/**
 		 * Hardcoded category to the {@link Endpoint} class
 		 */
+		@Override
 		public final String category() { return StringUtils.toLowerCase(Endpoint.class); }
 	}
 	
@@ -198,7 +201,8 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				super();
 				internal(true);
 			}
-			
+
+			@Override
 			public <T extends Endpoint.Type> T url(String value) { super.url(validate(value)); return (T) this; }
 			
 			/**
@@ -256,6 +260,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param url the URL to compare
 			 * @return true if the provided URL matches this endpoint
 			 */
+			@Override
 			public boolean matches(String url)
 			{
 				if( url == null || url.isEmpty() ) return false;
@@ -263,10 +268,10 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				return StringUtils.simplePathMatches(wildcardUrl, url, urlWordWildcards, urlGlobalWildcards, urlNegators, urlWordDelimiters);
 			}
 			
-			private final static char[] urlWordWildcards = new char[] { '*' };
-			private final static char[] urlGlobalWildcards = new char[] { '#' };
-			private final static char[] urlNegators = new char[] { '!' };
-			private final static char[] urlWordDelimiters = new char[] { '/' };
+			private static final char[] urlWordWildcards = new char[] { '*' };
+			private static final char[] urlGlobalWildcards = new char[] { '#' };
+			private static final char[] urlNegators = new char[] { '!' };
+			private static final char[] urlWordDelimiters = new char[] { '/' };
 			
 			/**
 			 * Handler in case of error
@@ -605,7 +610,8 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 	
 		protected Class<? extends Rest.Type> defaultTarget() { return Rest.Type.class; }
 		protected java.util.function.Supplier<? extends Rest.Type> defaultCreator() { return Rest.Type::new; }
-		
+
+		@Override
 		public Template<? extends Endpoint.Type> template()
 		{
 			return super.template()
@@ -630,7 +636,8 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					return (Storage.Type) r.a;
 				return null;
 			}
-			
+
+			@Override
 			public boolean matches(String url)
 			{
 				String filter = valueOf("filter").asString();
@@ -1228,7 +1235,8 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		
 		protected Class<? extends File.Type> defaultTarget() { return File.Type.class; }
 		protected java.util.function.Supplier<? extends File.Type> defaultCreator() { return File.Type::new; }
-		
+
+		@Override
 		public Template<? extends Endpoint.Type> template()
 		{
 			return super.template()

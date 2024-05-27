@@ -17,6 +17,7 @@ public class HttpResponse extends Destination
 {
 	private static class Type extends Destination.Type
 	{
+		@Override
 		public void accept(Message message, String input)
 		{
 			if( !input.equals("response") ) return;
@@ -86,7 +87,6 @@ public class HttpResponse extends Destination
 				
 				// BODY
 				out.write(sb.toString().getBytes(StandardCharsets.ISO_8859_1));
-				sb = null;
 				out.write(body);
 				
 				try { message.connection().write(out.toByteArray()); }
@@ -103,14 +103,17 @@ public class HttpResponse extends Destination
 			catch(Exception e)
 			{
 				Manager.of(Logger.class).fine(getClass(), e);
-				try { message.connection().close(); } catch(Exception x) { }
+				try { message.connection().close(); } catch(Exception x) { /* ignore */ }
 			}
 		}
 	}
-	
+
+	@Override
 	protected Class<? extends HttpResponse.Type> defaultTarget() { return HttpResponse.Type.class; }
+	@Override
 	protected Supplier<? extends HttpResponse.Type> defaultCreator() { return HttpResponse.Type::new; }
-	
+
+	@Override
 	public Destination.Template template()
 	{
 		return super.template()

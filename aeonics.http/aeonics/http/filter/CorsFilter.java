@@ -66,7 +66,8 @@ public class CorsFilter extends Filter
 
 	protected Class<? extends CorsFilter.Type> defaultTarget() { return CorsFilter.Type.class; }
 	protected Supplier<? extends CorsFilter.Type> defaultCreator() { return CorsFilter.Type::new; }
-	
+
+	@Override
 	public Template<? extends Filter.Type> template()
 	{
 		return super.template()

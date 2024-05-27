@@ -24,6 +24,7 @@ public class HttpServer extends Origin
 {
 	private static class Type extends Origin.NetworkServer
 	{
+		@Override
 		public Network.Server connect() throws Exception
 		{
 			Data crt = valueOf("certificate");
@@ -48,7 +49,7 @@ public class HttpServer extends Origin
 				
 				if( p == null )
 				{
-					try { connection.close(); } catch(Exception e) { }
+					try { connection.close(); } catch(Exception e) { /* ignore */ }
 					Manager.of(Logger.class).warning(HttpServer.class, "Unsupported protocol version: {}", connection.alpn());
 				}
 				
@@ -84,7 +85,7 @@ public class HttpServer extends Origin
 						try { m.connection().write(sb.toString()); }
 						catch(IOException ioe)
 						{
-							try { m.connection().close(); } catch(Exception x) { }
+							try { m.connection().close(); } catch(Exception x) { /* ignore */ }
 						}
 					}
 				});
@@ -111,13 +112,10 @@ public class HttpServer extends Origin
 				if( auth.startsWith("Bearer ") )
 				{
 					Token token = Manager.of(Security.class).authenticate(auth.substring(7), true);
-					if( token != null )
+					if( token != null && token.isValid() && token.inScope("http") )
 					{
-						if( token.isValid() && token.inScope("http") )
-						{
-							current = token.user();
-							request.metadata().put("token", token);
-						}
+						current = token.user();
+						request.metadata().put("token", token);
 					}
 				}
 			}
@@ -139,10 +137,13 @@ public class HttpServer extends Origin
 				throw new SecurityException("Access denied");
 		}
 	}
-	
+
+	@Override
 	protected Class<? extends HttpServer.Type> defaultTarget() { return HttpServer.Type.class; }
+	@Override
 	protected Supplier<? extends HttpServer.Type> defaultCreator() { return HttpServer.Type::new; }
-	
+
+	@Override
 	public Origin.Template template()
 	{
 		return super.template()

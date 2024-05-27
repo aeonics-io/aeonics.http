@@ -32,7 +32,8 @@ public class HeadersFilter extends Filter
 
 	protected Class<? extends HeadersFilter.Type> defaultTarget() { return HeadersFilter.Type.class; }
 	protected Supplier<? extends HeadersFilter.Type> defaultCreator() { return HeadersFilter.Type::new; }
-	
+
+	@Override
 	public Template<? extends Filter.Type> template()
 	{
 		return super.template()

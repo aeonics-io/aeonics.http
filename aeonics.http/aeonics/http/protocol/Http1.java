@@ -51,7 +51,7 @@ public class Http1 implements HttpProtocol
 		         catch(HttpParseException e)
 		         {
 		        	 Manager.of(Logger.class).fine(HttpServer.class, "Http request parsing error: {}", e.getMessage());
-		        	 try { c.close(); } catch(Exception x) { }
+		        	 try { c.close(); } catch(Exception x) { /* ignore */ }
 		         }
 		         finally
 		         { 
@@ -94,7 +94,7 @@ public class Http1 implements HttpProtocol
 		public State() { reset(); }
 	}
 	
-	static enum Mode
+	enum Mode
 	{
 		MODE_1_START,
 		MODE_2_METHOD,
@@ -121,9 +121,9 @@ public class Http1 implements HttpProtocol
 	
 	static class Incomplete extends RuntimeException { }
 	
-	public static int maxURISize = 8000; // rfc7230#section-3.1.1
-	public static int maxHeaderSize = 4096; // 4KB
-	public static int maxBodySize = 5242880; // 5MB
+	private static final int MAX_URI_SIZE = 8000; // rfc7230#section-3.1.1
+	private static final int MAX_HEADER_SIZE = 4096; // 4KB
+	private static final int MAX_BODY_SIZE = 5242880; // 5MB
 	
 	/**
 	 * Attempts to parse the input HTTP request
@@ -144,18 +144,26 @@ public class Http1 implements HttpProtocol
 			switch(state.mode)
 			{
 				case MODE_1_START: _1_eatWhitespace(data, state);
+					// fallthrough
 				case MODE_2_METHOD: _2_parseMethod(data, state);
+					// fallthrough
 				case MODE_3_URI: _3_parseURI(data, state);
+					// fallthrough
 				case MODE_4_QUERYSTRING_NAME:
+					// fallthrough
 				case MODE_4_QUERYSTRING_VALUE: _4_parseQueryString(data, state);
+					// fallthrough
 				case MODE_5_VERSION: _5_parseVersion(data, state);
+					// fallthrough
 				case MODE_6_HEADER_NAME: 
 				case MODE_6_HEADER_VALUE: _6_parseHeaders(data, state);
+					// fallthrough
 				case MODE_7_BODY: _7_parseBody(data, state);
+				    // fallthrough
 				default: break;
 			}
 		}
-		catch(Incomplete i) { }
+		catch(Incomplete i) { /* normal, just proceed */ }
 		
 		if( state.mode == Mode.MODE_8_COMPLETE )
 		{
@@ -178,7 +186,7 @@ public class Http1 implements HttpProtocol
 		{
 			if( b == '\r' || b == '\n' || b == ' ' )
 			{
-				if( state.uriSize > maxURISize )
+				if( state.uriSize > MAX_URI_SIZE )
 					throw new HttpParseException("First line too long", 414);
 				continue;
 			}
@@ -196,7 +204,7 @@ public class Http1 implements HttpProtocol
 		
 		for( ; state.i < state.length; state.i++, state.uriSize++ )
 		{
-			if( state.uriSize > maxURISize )
+			if( state.uriSize > MAX_URI_SIZE )
 				throw new HttpParseException("First line too long", 414);
 			
 			b = data[state.i];
@@ -231,7 +239,7 @@ public class Http1 implements HttpProtocol
 
 		for( ; state.i < state.length; state.i++, state.uriSize++ )
 		{
-			if( state.uriSize > maxURISize )
+			if( state.uriSize > MAX_URI_SIZE )
 				throw new HttpParseException("First line too long", 414);
 			
 			b = data[state.i];
@@ -285,7 +293,7 @@ public class Http1 implements HttpProtocol
 		byte b = 0;
 		for( ; state.i < state.length; state.i++, state.uriSize++ )
 		{
-			if( state.uriSize > maxURISize )
+			if( state.uriSize > MAX_URI_SIZE )
 				throw new HttpParseException("First line too long", 414);
 			
 			b = data[state.i];
@@ -420,7 +428,6 @@ public class Http1 implements HttpProtocol
 		
 		state.i = state.mark += offset;
 		state.mode = Mode.MODE_6_HEADER_NAME;
-		return;
 	}
 	
 	private static void _6_parseHeaders(byte[] data, State state) throws HttpParseException
@@ -428,7 +435,7 @@ public class Http1 implements HttpProtocol
 		byte b = 0;
 		for( ; state.i < state.length; state.i++, state.headerSize++ )
 		{
-			if( state.headerSize > maxHeaderSize )
+			if( state.headerSize > MAX_HEADER_SIZE )
 				throw new HttpParseException("Headers too long", 431);
 				
 			b = data[state.i];
@@ -516,6 +523,8 @@ public class Http1 implements HttpProtocol
 		
 		if( state.contentLength < 0 )
 			state.contentLength = state.request.get("headers").asInt("content-length");
+		if( state.contentLength > MAX_BODY_SIZE )
+			throw new HttpParseException("Body too large", 431);
 		if( state.length - state.mark + state.partial.size() < state.contentLength )
 		{
 			state.partial.write(data, state.mark, state.length - state.mark);
@@ -630,10 +639,7 @@ public class Http1 implements HttpProtocol
 		{
 			key = new String(data, mark, i - mark, StandardCharsets.US_ASCII);
 			if( isEncoded )
-			{
 				key = java.net.URLDecoder.decode(key, StandardCharsets.UTF_8);
-				isEncoded = false;
-			}
 			
 			request.get("post").put(key, Data.empty());
 		}
@@ -641,10 +647,7 @@ public class Http1 implements HttpProtocol
 		{
 			String value = new String(data, mark, i - mark, StandardCharsets.US_ASCII);
 			if( isEncoded )
-			{
 				value = java.net.URLDecoder.decode(value, StandardCharsets.UTF_8);
-				isEncoded = false;
-			}
 			
 			request.get("post").put(key, value);
 		}

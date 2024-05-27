@@ -36,7 +36,8 @@ public class HttpsFilter extends Filter
 	
 	protected Class<? extends HttpsFilter.Type> defaultTarget() { return HttpsFilter.Type.class; }
 	protected Supplier<? extends HttpsFilter.Type> defaultCreator() { return HttpsFilter.Type::new; }
-	
+
+	@Override
 	public Template<? extends Filter.Type> template()
 	{
 		return super.template()

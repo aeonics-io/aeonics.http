@@ -24,6 +24,7 @@ public class Router extends Action
 {
 	private static class Type extends Action.Type
 	{
+		@Override
 		public Map<String, Message> accept(Message message, String input, Set<String> outputs)
 		{
 			if( !outputs.contains("response") )
@@ -276,10 +277,13 @@ public class Router extends Action
 			return sb.toString();
 		}
 	}
-	
+
+	@Override
 	protected Class<? extends Router.Type> defaultTarget() { return Router.Type.class; }
+	@Override
 	protected Supplier<? extends Router.Type> defaultCreator() { return Router.Type::new; }
-	
+
+	@Override
 	public Action.Template template()
 	{
 		return super.template()
