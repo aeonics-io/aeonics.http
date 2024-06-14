@@ -505,7 +505,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 */
 			public Data process(Data params, User.Type user) throws Throwable
 			{
-				if( processor2 != null ) return processor2.apply(params);
+				if( processor2 != null ) return processor2.apply(params, user);
 				else return process(params);
 			}
 			
