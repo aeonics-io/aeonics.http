@@ -76,17 +76,24 @@ public class CorsFilter extends Filter
 			.add(new Parameter("credentials")
 				.summary("Access-Control-Allow-Credentials")
 				.description("The Access-Control-Allow-Credentials response header tells browsers whether the server allows cross-origin HTTP requests to include credentials. The value should be 'true' or 'false'.")
+				.rule(Parameter.Rule.BOOLEAN)
+				.format(Parameter.Format.BOOLEAN)
+				.optional(true)
 				.defaultValue(Data.of(true))
 				)
 			.add(new Parameter("methods")
 				.summary("Access-Control-Allow-Methods")
 				.description("The Access-Control-Allow-Methods response header specifies one or more methods allowed when accessing a resource in response to a preflight request. The value shoud be a comma-delimited list of the allowed HTTP request methods. If the value '*' is used, the value is copied from the request 'Access-Control-Request-Method' header.")
+				.format(Parameter.Format.TEXT)
+				.optional(true)
 				.defaultValue(Data.of("*"))
 			// Access-Control-Request-Method
 				)
 			.add(new Parameter("origin")
 				.summary("Access-Control-Allow-Origin")
 				.description("The Access-Control-Allow-Origin response header indicates whether the response can be shared with requesting code from the given origin. Only a single origin can be specified. If the server supports clients from multiple origins, it must return the origin for the specific client making the request. If the value '*' is used, the value is copied from the request 'Host' header.")
+				.format(Parameter.Format.TEXT)
+				.optional(true)
 				.defaultValue(Data.of("*"))
 				)
 			// Host
@@ -94,6 +101,8 @@ public class CorsFilter extends Filter
 			.add(new Parameter("headers")
 				.summary("Access-Control-Allow-Headers")
 				.description("The Access-Control-Allow-Headers response header is used in response to a preflight request which includes the Access-Control-Request-Headers to indicate which HTTP headers can be used during the actual request. The value shoulld be a list of headers, separated by commas. If the special value '*' is used, the value is copied from the request 'Access-Control-Request-Headers' header.")
+				.format(Parameter.Format.TEXT)
+				.optional(true)
 				.defaultValue(Data.of("*"))
 				);
 			// Access-Control-Request-Headers

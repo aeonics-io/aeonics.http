@@ -172,7 +172,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 	 * Endpoint.Rest.Type endpoint = new Endpoint.Rest() { } // &lt;-- note the '{ }' to create a new anonymous class
 	 *     
 	 *     // register the custom entity before calling the template
-	 *     .entity(Hello.class)
+	 *     .target(Hello.class)
 	 *     .creator(Hello::new)
 	 *     
 	 *     .template() // &lt;-- create the template and register it in the factory
@@ -1250,10 +1250,12 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				.add(new Parameter("path")
 					.summary("Storage path")
 					.description("The path prefix in the storage in case content should be fetched from a subdirectory.")
+					.format(Parameter.Format.TEXT)
 					.optional(true).defaultValue(Data.of("")))
 				.add(new Parameter("filter")
 					.summary("URL prefix")
 					.description("The URL prefix to filter which requests can be answered by this endpoint. The prefix filter should start with '/'.")
+					.format(Parameter.Format.TEXT)
 					.optional(true).defaultValue(Data.of("/")))
 				;
 		}

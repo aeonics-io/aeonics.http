@@ -66,17 +66,24 @@ public class Main extends Plugin
 		c.declare(HttpServer.class, new Parameter("default.tls.certificate")
 			.summary("Default HTTPS certificate")
 			.description("The certificate to use by the default HTTP Server entity. The certificate should be provided in PEM-encoded base64 format. It may be the path to a local file.")
+			.format(Parameter.Format.TEXT)
+			.optional(true)
 			.defaultValue(Data.empty()));
 		c.declare(HttpServer.class, new Parameter("default.tls.private")
 			.summary("Default HTTPS private key")
 			.description("The private key to use by the default HTTP Server entity. The private key should be provided in PEM-encoded base64 format. It may be the path to a local file.")
+			.format(Parameter.Format.TEXT)
+			.optional(true)
 			.defaultValue(Data.empty()));
 	}
 	
 	private static void onBeforeRun()
 	{
 		if( !Manager.of(Config.class).contains(Router.class, "default") )
-			Manager.of(Config.class).set(Router.class, "default", Data.of(new Router().template().build().name("Default router").id()));
+			Manager.of(Config.class).set(Router.class, "default", Data.of(
+				Factory.of(Action.class).get(Router.class).build(
+					Data.map().put("allfilters", true).put("allendpoints", true)
+					).name("Default router").id()));
 	}
 	
 	private static void onRun()
@@ -85,28 +92,26 @@ public class Main extends Plugin
 		policy.name("Allow http for everyone by default");
 		policy.addRelation("rule", new Rule.MatchAll().template().build().name("Everyone"));
 		
-		Action.Type router = Registry.of(Action.class).get(Manager.of(Config.class).get(Router.class, "default").asString());
-		router
-			.addRelation("endpoints", new Endpoint.Rest() { }
-				.template()
-				.summary("Test endpoint")
-				.description("This endpoint returns the same response all the time. If this endpoint responds, it means that the system is up and running.")
-				.build()
-				.<Rest.Type>cast()
-				.process(() -> Data.map().put("success", true))
-				.url("/api/ping")
-				.method("GET")
-				)
-			.addRelation("endpoints", new Endpoint.File().template().build(Data.map().put("filter", "/"))
-				.addRelation("storage", new Storage.File().template().build(Data.map().put("root", "www")).name("Web root storage")
-				))
-			.addRelation("filters", new CorsFilter().template().build().name("CORS Filter"))
-			.addRelation("filters", new GzipFilter().template().build().name("GZIP Filter"))
-			.addRelation("filters", new HeadersFilter().template().build().name("Custom headers filter"))
-			.addRelation("filters", new OptionsMethodFilter().template().build().name("Options method filter"))
+		Action.Type router = (Action.Type) Registry.of(Action.class).get(Manager.of(Config.class).get(Router.class, "default").asString())
 			.addRelation("destinations", new HttpResponse().template().build().name("Http responder"), 
-				Data.map().put("input", "response").put("output", "response"))
-		;
+				Data.map().put("input", "response").put("output", "response"));
+		
+		new Endpoint.Rest() { }
+			.template()
+			.summary("Test endpoint")
+			.description("This endpoint returns the same response all the time. If this endpoint responds, it means that the system is up and running.")
+			.build()
+			.<Rest.Type>cast()
+			.process(() -> Data.map().put("success", true))
+			.url("/api/ping")
+			.method("GET");
+		new Endpoint.File().template().build(Data.map().put("filter", "/"))
+			.addRelation("storage", new Storage.File().template().build(Data.map().put("root", "www")).name("Web root storage")
+			);
+		new CorsFilter().template().build().name("CORS Filter");
+		new GzipFilter().template().build().name("GZIP Filter");
+		new HeadersFilter().template().build().name("Custom headers filter");
+		new OptionsMethodFilter().template().build().name("Options method filter");
 		
 		String queue = new Queue().template().build(Data.map().put("concurrency", Hardware.CPU.cores())
 			.put("actions", Data.list().add(Data.map().put("id", router.id()).put("input", "request")))

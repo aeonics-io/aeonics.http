@@ -11,6 +11,7 @@ import aeonics.data.Data;
 import aeonics.entity.Action;
 import aeonics.entity.Entity;
 import aeonics.entity.Message;
+import aeonics.entity.Registry;
 import aeonics.manager.Logger;
 import aeonics.manager.Manager;
 import aeonics.manager.Monitor;
@@ -105,12 +106,26 @@ public class Router extends Action
 		
 		private Data requestFilters(Message request) throws Throwable
 		{
-			for( Tuple<Entity, Data> r : relations("filters") )
+			if( valueOf("allfilters").asBool() )
 			{
-				try( AutoCloseable a = Manager.of(Monitor.class).ns(r.a) )
+				for( Filter.Type f : Registry.of(Filter.class) )
 				{
-					Data response = ((Filter.Type)r.a).filter(request);
-					if( response != null ) return response;
+					try( AutoCloseable a = Manager.of(Monitor.class).ns(f) )
+					{
+						Data response = f.filter(request);
+						if( response != null ) return response;
+					}
+				}
+			}
+			else
+			{
+				for( Tuple<Entity, Data> r : relations("filters") )
+				{
+					try( AutoCloseable a = Manager.of(Monitor.class).ns(r.a) )
+					{
+						Data response = ((Filter.Type)r.a).filter(request);
+						if( response != null ) return response;
+					}
 				}
 			}
 			return null;
@@ -121,35 +136,64 @@ public class Router extends Action
 			String method = request.content().asString("method");
 			String path = request.content().asString("path");
 			
-			for( Tuple<Entity, Data> x : relations("endpoints") )
+			if( valueOf("allendpoints").asBool() )
 			{
-				Endpoint.Type e = (Endpoint.Type) x.a;
-				if( e == null ) continue;
-				
-				if( !e.method().equals(method) ) continue;
-				if( !e.matches(path) ) continue;
-
-				try( AutoCloseable ns = Manager.of(Monitor.class).ns(e) )
+				for( Endpoint.Type e : Registry.of(Endpoint.class) )
 				{
-					return e.process(request);
+					if( !e.method().equals(method) ) continue;
+					if( !e.matches(path) ) continue;
+	
+					try( AutoCloseable ns = Manager.of(Monitor.class).ns(e) )
+					{
+						return e.process(request);
+					}
 				}
 			}
+			else
+			{
+				for( Tuple<Entity, Data> x : relations("endpoints") )
+				{
+					Endpoint.Type e = (Endpoint.Type) x.a;
+					if( e == null ) continue;
+					
+					if( !e.method().equals(method) ) continue;
+					if( !e.matches(path) ) continue;
+	
+					try( AutoCloseable ns = Manager.of(Monitor.class).ns(e) )
+					{
+						return e.process(request);
+					}
+				}
+			}
+			
 			return null;
 		}
 		
 		private Data responseFilters(Message request, Data response) throws Throwable
 		{
-			for( Tuple<Entity, Data> r : relations("filters") )
+			if( valueOf("allfilters").asBool() )
 			{
-				try( AutoCloseable a = Manager.of(Monitor.class).ns(r.a) )
+				for( Filter.Type f : Registry.of(Filter.class) )
 				{
-					Data override = ((Filter.Type)r.a).filter(request, response);
-					if( override != null )
+					try( AutoCloseable a = Manager.of(Monitor.class).ns(f) )
 					{
-						return override;
+						Data override = f.filter(request);
+						if( override != null ) return override;
 					}
 				}
 			}
+			else
+			{
+				for( Tuple<Entity, Data> r : relations("filters") )
+				{
+					try( AutoCloseable a = Manager.of(Monitor.class).ns(r.a) )
+					{
+						Data override = ((Filter.Type)r.a).filter(request, response);
+						if( override != null ) return override;
+					}
+				}
+			}
+			
 			return null;
 		}
 		
@@ -299,11 +343,17 @@ public class Router extends Action
 			.add(new Parameter("host")
 				.summary("Virtual Host")
 				.description("A wildcard filter to match the requested host. Use this parameter to apply virtual host routing. Default: '#'.")
+				.format(Parameter.Format.TEXT)
+				.rule(Parameter.Rule.WILDCARD_PATH)
+				.optional(true)
 				.defaultValue(Data.of("#"))
 				)
 			.add(new Parameter("path")
 				.summary("Virtual Path")
 				.description("A wildcard filter to restrict the delivered URLs. Default: '#'.")
+				.format(Parameter.Format.TEXT)
+				.rule(Parameter.Rule.WILDCARD_PATH)
+				.optional(true)
 				.defaultValue(Data.of("#"))
 				)
 			.add(new Relationship("filters")
@@ -315,6 +365,22 @@ public class Router extends Action
 				.category(Endpoint.class)
 				.summary("Endpoints")
 				.description("List of endpoints accessible via this router.")
+				)
+			.add(new Parameter("allfilters")
+				.summary("Use all filters")
+				.description("If true, this router will use all filters in the registry regardless if they are listed as relationship.")
+				.rule(Parameter.Rule.BOOLEAN)
+				.format(Parameter.Format.BOOLEAN)
+				.optional(true)
+				.defaultValue(Data.of(true))
+				)
+			.add(new Parameter("allendpoints")
+					.summary("Use all endpoints")
+					.description("If true, this router will use all endpoints in the registry regardless if they are listed as relationship.")
+					.rule(Parameter.Rule.BOOLEAN)
+					.format(Parameter.Format.BOOLEAN)
+					.optional(true)
+					.defaultValue(Data.of(true))
 				)
 			;
 	}
