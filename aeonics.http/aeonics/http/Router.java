@@ -4,6 +4,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -19,7 +20,7 @@ import aeonics.template.Channel;
 import aeonics.template.Parameter;
 import aeonics.template.Relationship;
 import aeonics.util.StringUtils;
-import aeonics.util.Tuple;
+import aeonics.util.Tuples.Tuple;
 
 public class Router extends Action
 {
@@ -145,7 +146,7 @@ public class Router extends Action
 	
 					try( AutoCloseable ns = Manager.of(Monitor.class).ns(e) )
 					{
-						return e.process(request);
+						return Objects.requireNonNullElse(e.process(request), Data.empty());
 					}
 				}
 			}
@@ -161,7 +162,7 @@ public class Router extends Action
 	
 					try( AutoCloseable ns = Manager.of(Monitor.class).ns(e) )
 					{
-						return e.process(request);
+						return Objects.requireNonNullElse(e.process(request), Data.empty());
 					}
 				}
 			}

@@ -7,7 +7,6 @@ import aeonics.Plugin;
 import aeonics.data.Data;
 import aeonics.entity.Action;
 import aeonics.entity.Queue;
-import aeonics.entity.Registry;
 import aeonics.entity.Storage;
 import aeonics.entity.Topic;
 import aeonics.entity.security.Policy;
@@ -31,7 +30,7 @@ import aeonics.manager.Lifecycle.Phase;
 import aeonics.manager.Logger;
 import aeonics.util.Callback;
 import aeonics.util.Hardware;
-import aeonics.util.Tuple;
+import aeonics.util.Tuples.Tuple;
 
 public class Main extends Plugin
 {
@@ -40,10 +39,10 @@ public class Main extends Plugin
 	
 	public void start()
 	{
-		Manager.of(Lifecycle.class).on(Phase.LOAD, Callback.once(() -> onLoad()));
-		Manager.of(Lifecycle.class).on(Phase.CONFIG, Callback.once(() -> onConfig()));
-		Manager.of(Lifecycle.class).on(Phase.RUN, Callback.once(() -> onRun()));
-		Manager.of(Lifecycle.class).before(Phase.RUN, Callback.once(() -> onBeforeRun()));
+		Lifecycle.on(Phase.LOAD, Callback.once(() -> onLoad()));
+		Lifecycle.on(Phase.CONFIG, Callback.once(() -> onConfig()));
+		Lifecycle.on(Phase.RUN, Callback.once(() -> onRun()));
+		Lifecycle.after(Phase.RUN, Callback.once(() -> onAfterRun()));
 	}
 	
 	private static void onLoad()
@@ -75,27 +74,29 @@ public class Main extends Plugin
 			.format(Parameter.Format.TEXT)
 			.optional(true)
 			.defaultValue(Data.empty()));
+		c.declare(HttpServer.class, new Parameter("default.tls.enabled")
+			.summary("Enable HTTPS")
+			.description("If set to true, this parameter enables HTTPS. If the certificate and key are not provided, a new self-signed certificate will be generated.")
+			.format(Parameter.Format.BOOLEAN)
+			.optional(true)
+			.defaultValue(Data.of(true)));
+		c.declare(HttpServer.class, new Parameter("default.port")
+			.summary("Default HTTP port")
+			.description("The port number to use for the default HTTP server.")
+			.format(Parameter.Format.NUMBER)
+			.optional(true)
+			.defaultValue(Data.of(443)));
+		c.declare(HttpServer.class, new Parameter("default.address")
+			.summary("Default HTTP listening IP address")
+			.description("The IP address the default HTTP server will listen to. IPv4 or IPv6 can be specified depending on the system capabilities.")
+			.format(Parameter.Format.TEXT)
+			.optional(true)
+			.defaultValue(Data.of("0.0.0.0")));
 	}
-	
-	private static void onBeforeRun()
-	{
-		if( !Manager.of(Config.class).contains(Router.class, "default") )
-			Manager.of(Config.class).set(Router.class, "default", Data.of(
-				Factory.of(Action.class).get(Router.class).build(
-					Data.map().put("allfilters", true).put("allendpoints", true)
-					).name("Default router").id()));
-	}
-	
+
+	private static boolean hasDefaultHttpSetup = false;
 	private static void onRun()
 	{
-		Policy.Type policy = new Policy.Allow().template().build(Data.map().put("scope", "http"));
-		policy.name("Allow http for everyone by default");
-		policy.addRelation("rule", new Rule.MatchAll().template().build().name("Everyone"));
-		
-		Action.Type router = (Action.Type) Registry.of(Action.class).get(Manager.of(Config.class).get(Router.class, "default").asString())
-			.addRelation("destinations", new HttpResponse().template().build().name("Http responder"), 
-				Data.map().put("input", "response").put("output", "response"));
-		
 		new Endpoint.Rest() { }
 			.template()
 			.summary("Test endpoint")
@@ -105,9 +106,21 @@ public class Main extends Plugin
 			.process(() -> Data.map().put("success", true))
 			.url("/api/ping")
 			.method("GET");
-		new Endpoint.File().template().build(Data.map().put("filter", "/"))
-			.addRelation("storage", new Storage.File().template().build(Data.map().put("root", "www")).name("Web root storage")
-			);
+		
+		hasDefaultHttpSetup = Manager.of(Config.class).get(HttpServer.class, "hasDefault").asBool();
+		if( hasDefaultHttpSetup ) return;
+		Manager.of(Config.class).set(HttpServer.class, "hasDefault", Data.of(true));
+		
+		Policy.Type policy = new Policy.Allow().template().build(Data.map().put("scope", "http"));
+		policy.name("Allow http for everyone by default");
+		policy.addRelation("rule", new Rule.MatchAll().template().build().name("Everyone"));
+		
+		Action.Type router = (Action.Type) Factory.of(Action.class).get(Router.class).build(
+				Data.map().put("allfilters", true).put("allendpoints", true))
+			.name("Default router")
+			.addRelation("destinations", new HttpResponse().template().build().name("Http responder"), 
+				Data.map().put("input", "response").put("output", "response"));
+		
 		new CorsFilter().template().build().name("CORS Filter");
 		new GzipFilter().template().build().name("GZIP Filter");
 		new HeadersFilter().template().build().name("Custom headers filter");
@@ -124,7 +137,9 @@ public class Main extends Plugin
 		Config c = Manager.of(Config.class);
 		Data crt = c.get(HttpServer.class, "default.tls.certificate");
 		Data key = c.get(HttpServer.class, "default.tls.private");
-		if( !crt.isEmpty() && !key.isEmpty() )
+		boolean ssl = c.get(HttpServer.class, "default.tls.enabled").asBool();
+		
+		if( ssl && !crt.isEmpty() && !key.isEmpty() )
 		{
 			try
 			{
@@ -138,15 +153,20 @@ public class Main extends Plugin
 				crt = key = Data.empty();
 			}
 		}
-		if( crt.isEmpty() || key.isEmpty() )
+		if( ssl && (crt.isEmpty() || key.isEmpty()) )
 		{
 			Tuple<Data, Data> t = generateSelfSignedCertificate();
 			crt = t.a;
 			key = t.b;
 		}
 		
+		int port = c.get(HttpServer.class, "default.port").asInt();
+		if( port <= 0 ) port = ssl ? 443 : 80;
+		Data address = c.get(HttpServer.class, "default.address");
+		
 		new HttpServer().template().build(Data.map()
-			.put("port", 443)
+			.put("address", address)
+			.put("port", port)
 			.put("certificate", crt)
 			.put("key", key)
 			.put("topics", Data.list()
@@ -154,6 +174,22 @@ public class Main extends Plugin
 					.put("id", topic)
 					.put("channel", "request"))))
 			.name("Http Server");
+	}
+	
+	private static void onAfterRun()
+	{
+		if( hasDefaultHttpSetup ) return;
+		
+		// The storage endpoint is slow to lookup because it
+		// must access the filesystem. When the router looks up the
+		// requested path, we should check this one last so that any other
+		// endpoint is fast to find.
+		// Therefore, we declare the endpoint here so that it is more likely to be last
+		// in the registry iterator.
+		new Endpoint.File().template().build(Data.map().put("filter", "/"))
+			.addRelation("storage", new Storage.File()
+				.template()
+				.build(Data.map().put("root", "www")).name("Web root storage"));
 	}
 	
 	private static Tuple<Data, Data> generateSelfSignedCertificate()

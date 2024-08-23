@@ -16,7 +16,7 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 import aeonics.data.Data;
-import aeonics.util.Tuple;
+import aeonics.util.Tuples.Tuple;
 
 /**
  * This class generates a very basic self signed certificate.
@@ -62,7 +62,7 @@ public class DirtySelfSignedCertificateGenerator
     	TimeZone tz = TimeZone.getTimeZone("GMT");
     	SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss'Z'", Locale.US);
         sdf.setTimeZone(tz);
-        byte[] time = (sdf.format(date)).getBytes(StandardCharsets.ISO_8859_1);
+        byte[] time = sdf.format(date).getBytes(StandardCharsets.ISO_8859_1);
         
         return encode(GENERALIZED_TIME_TAG, time);
     }

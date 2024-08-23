@@ -12,6 +12,7 @@ import aeonics.entity.security.Token;
 import aeonics.entity.security.User;
 import aeonics.http.protocol.Http1;
 import aeonics.http.protocol.HttpProtocol;
+import aeonics.manager.Lifecycle;
 import aeonics.manager.Logger;
 import aeonics.manager.Manager;
 import aeonics.manager.Network;
@@ -37,7 +38,7 @@ public class HttpServer extends Origin
 			{
 				server = Manager.of(Network.class).server(valueOf("address").asString(), valueOf("port").asInt(), new SecurityOptions()
 					.withAlpn(Arrays.asList("http/1.1","http/1.0"))
-					.withServerCertificate(crt.asString(), key.asString()));
+					.withServerCertificate(crt.asString(), key.asString(), null));
 			}
 			final boolean tls = server.isSecure();
 			
@@ -165,7 +166,7 @@ public class HttpServer extends Origin
 				.defaultValue(Data.of("0.0.0.0")))
 			.add(new Parameter("certificate")
 				.summary("Certificate")
-				.description("The HTTPS certificate to use. Leave this value empty if the connection should use plain HTTP instead of HTTPS.")
+				.description("The HTTPS full certificate chain to use. Leave this value empty if the connection should use plain HTTP instead of HTTPS.")
 				.format(Parameter.Format.TEXT)
 				.optional(true))
 			.add(new Parameter("key")
@@ -173,8 +174,17 @@ public class HttpServer extends Origin
 				.description("The private key that matches the HTTPS certificate. Leave this value empty if the connection should use plain HTTP instead of HTTPS.")
 				.format(Parameter.Format.TEXT)
 				.optional(true))
-			.builder((data, instance) -> { instance.stop(); instance.start(); Registry.add(instance); })
-			.modifier((data, instance) -> { instance.stop(); instance.start(); })
+			.builder((data, instance) -> {
+				instance.stop();
+				if( Manager.of(Lifecycle.class).phase() == Lifecycle.Phase.RUN )
+					instance.start(); 
+				Registry.add(instance);
+			})
+			.modifier((data, instance) -> { 
+				instance.stop();
+				if( Manager.of(Lifecycle.class).phase() == Lifecycle.Phase.RUN )
+					instance.start(); 
+			})
 		;
 	}	
 }

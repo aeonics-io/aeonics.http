@@ -19,7 +19,7 @@ import aeonics.template.Parameter;
 import aeonics.template.Relationship;
 import aeonics.template.Template;
 import aeonics.util.StringUtils;
-import aeonics.util.Tuple;
+import aeonics.util.Tuples.Tuple;
 import aeonics.util.Functions.BiConsumer;
 import aeonics.util.Functions.BiFunction;
 import aeonics.util.Functions.Function;
@@ -601,7 +601,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					
 					value = p.b.resolve(value, request.content());
 					if( !p.b.validate(value) )
-						throw new IllegalArgumentException("Parameter validation failed for " + p.b.name());
+						throw new HttpException(400, "Parameter validation failed for " + p.b.name());
 					params.put(p.b.name(), value);
 				}
 				return params;

@@ -702,11 +702,11 @@ public class Http1 implements HttpProtocol
 							request.get("files").put(name, Data.map()
 								.put("name", filename)
 								.put("mime", mime)
-								.put("content", new String(data, mark, i - mark - bboundary.length - (end?1:2), StandardCharsets.ISO_8859_1))
+								.put("content", new String(data, mark, i - mark - bboundary.length - (end?2:3), StandardCharsets.ISO_8859_1))
 							);
 						}
 						else
-							request.get("post").put(name, new String(data, mark, i - mark - bboundary.length - 2, StandardCharsets.ISO_8859_1));
+							request.get("post").put(name, new String(data, mark, i - mark - bboundary.length - (end?2:3), StandardCharsets.ISO_8859_1));
 						
 						name = null;
 						filename = null;
