@@ -92,6 +92,14 @@ public class Main extends Plugin
 			.format(Parameter.Format.TEXT)
 			.optional(true)
 			.defaultValue(Data.of("0.0.0.0")));
+		c.declare(HttpServer.class, new Parameter("initialized")
+			.summary("Default HTTP server has been initialized")
+			.description("This parameter defines if the default HTTP server has already been initialized (true) or if it should done when starting the run phase (false)."
+					+ " This is normally set by the system to detect an initial snapshot.")
+			.format(Parameter.Format.BOOLEAN)
+			.rule(Parameter.Rule.BOOLEAN)
+			.optional(true)
+			.defaultValue(Data.of(false)));
 	}
 
 	private static boolean hasDefaultHttpSetup = false;
@@ -107,9 +115,9 @@ public class Main extends Plugin
 			.url("/api/ping")
 			.method("GET");
 		
-		hasDefaultHttpSetup = Manager.of(Config.class).get(HttpServer.class, "hasDefault").asBool();
+		hasDefaultHttpSetup = Manager.of(Config.class).get(HttpServer.class, "initialized").asBool();
 		if( hasDefaultHttpSetup ) return;
-		Manager.of(Config.class).set(HttpServer.class, "hasDefault", Data.of(true));
+		Manager.of(Config.class).set(HttpServer.class, "initialized", Data.of(true));
 		
 		Policy.Type policy = new Policy.Allow().template().build(Data.map().put("scope", "http"));
 		policy.name("Allow http for everyone by default");

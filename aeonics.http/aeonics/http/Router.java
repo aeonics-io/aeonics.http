@@ -45,7 +45,7 @@ public class Router extends Action
 				if( response == null ) response = processRequest(message);
 				if( response == null ) throw new HttpException(404);
 			}
-			catch(Throwable t)
+			catch(Exception t)
 			{
 				if( t instanceof HttpException )
 					Manager.of(Logger.class).finer(Endpoint.class, t);
@@ -61,7 +61,7 @@ public class Router extends Action
 				if( overwrite != null ) return finalizeResponse(message, overwrite, start);
 				else return finalizeResponse(message, response, start);
 			}
-			catch(Throwable t)
+			catch(Exception t)
 			{
 				Manager.of(Logger.class).info(Endpoint.class, t);
 				return finalizeResponse(message, handleError(t), start);
@@ -105,7 +105,7 @@ public class Router extends Action
 			return data;
 		}
 		
-		private Data requestFilters(Message request) throws Throwable
+		private Data requestFilters(Message request) throws Exception
 		{
 			if( valueOf("allfilters").asBool() )
 			{
@@ -132,7 +132,7 @@ public class Router extends Action
 			return null;
 		}
 		
-		private Data processRequest(Message request) throws Throwable
+		private Data processRequest(Message request) throws Exception
 		{
 			String method = request.content().asString("method");
 			String path = request.content().asString("path");
@@ -170,7 +170,7 @@ public class Router extends Action
 			return null;
 		}
 		
-		private Data responseFilters(Message request, Data response) throws Throwable
+		private Data responseFilters(Message request, Data response) throws Exception
 		{
 			if( valueOf("allfilters").asBool() )
 			{
@@ -198,7 +198,7 @@ public class Router extends Action
 			return null;
 		}
 		
-		private Data handleError(Throwable error)
+		private Data handleError(Exception error)
 		{
 			Data data = Data.map().put("isHttpResponse", true);
 			if( error instanceof HttpException )

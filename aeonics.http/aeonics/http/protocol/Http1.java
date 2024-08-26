@@ -714,6 +714,11 @@ public class Http1 implements HttpProtocol
 						
 						if( end ) return;
 					}
+					else if( end && mode == Mode.MODE_6_HEADER_NAME )
+					{
+						// no data: only the terminating boundary
+						return;
+					}
 					else if( end ) throw new HttpParseException("Premature end of multipart", 400);
 						
 					mode = Mode.MODE_6_HEADER_NAME;

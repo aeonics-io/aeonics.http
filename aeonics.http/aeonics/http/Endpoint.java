@@ -112,9 +112,9 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		 * </ul>
 		 * @param request the original message data
 		 * @return the generated response
-		 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
+		 * @throws Exception if anything happens, the exception will be wrapped in an {@link HttpException}
 		 */
-		public abstract Data process(Message request) throws Throwable;
+		public abstract Data process(Message request) throws Exception;
 		
 		@Override
 		public String name() { return method() + " " + url(); }
@@ -276,11 +276,11 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			/**
 			 * Handler in case of error
 			 */
-			private TriFunction<Data, User.Type, Throwable, Data> errorHandler = null;
+			private TriFunction<Data, User.Type, Exception, Data> errorHandler = null;
 			
 			/**
 			 * Sets an error handler for this endpoint. This is the opportunity to catch the error and return another response instead.
-			 * <p>The handler has the following signature: <code>TriFunction&lt;Data, User.Type, Throwable, Data&gt;</code></p>
+			 * <p>The handler has the following signature: <code>TriFunction&lt;Data, User.Type, Exception, Data&gt;</code></p>
 			 * <ol>
 			 * <li>The first argument represents the http request parameters. It may be null if the error is triggered while parsing the parameters.</li>
 			 * <li>The second argument is the authenticated user, or {@link User#ANONYMOUS}</li>
@@ -293,7 +293,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param handler the error handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Rest.Type> T error(TriFunction<Data, User.Type, Throwable, Data> handler) { errorHandler = handler; return (T) this; }
+			public <T extends Endpoint.Rest.Type> T error(TriFunction<Data, User.Type, Exception, Data> handler) { errorHandler = handler; return (T) this; }
 			
 			/**
 			 * Sets an error handler for this endpoint.
@@ -303,7 +303,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param handler the error handler
 			 * @return this
 			 */
-			public <T extends Endpoint.Rest.Type> T error(TriConsumer<Data, User.Type, Throwable> handler) { return error((request, user, error) -> { handler.accept(request, user, error); return null; }); }
+			public <T extends Endpoint.Rest.Type> T error(TriConsumer<Data, User.Type, Exception> handler) { return error((request, user, error) -> { handler.accept(request, user, error); return null; }); }
 			
 			/**
 			 * Handler called before processing the request
@@ -411,9 +411,9 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * </ul>
 			 * @param request the original message data
 			 * @return the generated response
-			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
+			 * @throws Exception if anything happens, the exception will be wrapped in an {@link HttpException}
 			 */
-			public final Data process(Message request) throws Throwable
+			public final Data process(Message request) throws Exception
 			{
 				User.Type user = Registry.of(User.class).get(request.user());
 				if( user == null ) user = User.ANONYMOUS;
@@ -432,7 +432,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					
 					response = process(params, user, request);
 				}
-				catch(Throwable t)
+				catch(Exception t)
 				{
 					if( errorHandler != null )
 					{
@@ -472,10 +472,10 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param user the associated user
 			 * @param request the original message data
 			 * @return the endpoint response
-			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
+			 * @throws Exception if anything happens, the exception will be wrapped in an {@link HttpException}
 			 * @see #process(Message)
 			 */
-			public Data process(Data params, User.Type user, Message request) throws Throwable
+			public Data process(Data params, User.Type user, Message request) throws Exception
 			{
 				if( processor1 != null ) return processor1.apply(params, user, request);
 				else return process(params, user);
@@ -500,10 +500,10 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @param params the validated input parameters
 			 * @param user the associated user
 			 * @return the endpoint response
-			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
+			 * @throws Exception if anything happens, the exception will be wrapped in an {@link HttpException}
 			 * @see #process(Message)
 			 */
-			public Data process(Data params, User.Type user) throws Throwable
+			public Data process(Data params, User.Type user) throws Exception
 			{
 				if( processor2 != null ) return processor2.apply(params, user);
 				else return process(params);
@@ -527,10 +527,10 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * You may override this method if you only need the validated input parameters.
 			 * @param params the validated input parameters
 			 * @return the endpoint response
-			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
+			 * @throws Exception if anything happens, the exception will be wrapped in an {@link HttpException}
 			 * @see #process(Message)
 			 */
-			public Data process(Data params) throws Throwable
+			public Data process(Data params) throws Exception
 			{
 				if( processor3 != null ) return processor3.apply(params);
 				else return process();
@@ -553,10 +553,10 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * Processes the request and generates a response.
 			 * You may override this method if you do not need any input parameters.
 			 * @return the endpoint response
-			 * @throws Throwable if anything happens, the exception will be wrapped in an {@link HttpException}
+			 * @throws Exception if anything happens, the exception will be wrapped in an {@link HttpException}
 			 * @see #process(Message)
 			 */
-			public Data process() throws Throwable
+			public Data process() throws Exception
 			{
 				if( processor4 != null ) return processor4.get();
 				else return null;
@@ -572,9 +572,9 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * 
 			 * @param request the original message data
 			 * @return a key-value pair of all parameters and their value
-			 * @throws Throwable if any parameter validation fails or if the input message is malformed
+			 * @throws Exception if any parameter validation fails or if the input message is malformed
 			 */
-			public Data collectAndValidateParameters(Message request) throws Throwable
+			public Data collectAndValidateParameters(Message request) throws Exception
 			{
 				// add url parameters as GET parameters
 				if( wildcardUrl != null )
@@ -653,7 +653,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					|| store.containsEntry(valueOf("path").asString() + "/" + url.substring(filter.length()) + "/index.html");
 			}
 			
-			public Data process(Message request) throws Throwable
+			public Data process(Message request) throws Exception
 			{
 				String filter = valueOf("filter").asString();
 				Storage.Type store = store();
