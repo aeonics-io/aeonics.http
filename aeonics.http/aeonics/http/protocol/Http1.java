@@ -19,8 +19,8 @@ public class Http1 implements HttpProtocol
 	private Network.Connection connection = null;
 	public Network.Connection connection() { return connection; }
 
-	private Callback<Message> onRequest = new Callback<Message>();
-	public Callback<Message> onRequest() { return onRequest; }
+	private Callback<Message, HttpProtocol> onRequest = new Callback<>(this);
+	public Callback<Message, HttpProtocol> onRequest() { return onRequest; }
 	
 	private AtomicBoolean busy = new AtomicBoolean(false);
 	private State parseState = new State();
@@ -30,7 +30,7 @@ public class Http1 implements HttpProtocol
 		this.connection = connection;
 		HttpProtocol.watch(this);
 		
-		this.connection.onReady().then((c) ->
+		this.connection.onReady().then((_null, c) ->
 		{
 			while( c.hasNext() )
 			{

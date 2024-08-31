@@ -1,9 +1,3 @@
-/*
- * Copyright c Aeonics srl and/or its respectful owner. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER
- *
- * This material is subject to the Aeonics Commercial License agreement.
- */
 package aeonics.http.filter;
 
 import java.util.function.Supplier;
@@ -79,14 +73,14 @@ public class CorsFilter extends Filter
 				.rule(Parameter.Rule.BOOLEAN)
 				.format(Parameter.Format.BOOLEAN)
 				.optional(true)
-				.defaultValue(Data.of(true))
+				.defaultValue(true)
 				)
 			.add(new Parameter("methods")
 				.summary("Access-Control-Allow-Methods")
 				.description("The Access-Control-Allow-Methods response header specifies one or more methods allowed when accessing a resource in response to a preflight request. The value shoud be a comma-delimited list of the allowed HTTP request methods. If the value '*' is used, the value is copied from the request 'Access-Control-Request-Method' header.")
 				.format(Parameter.Format.TEXT)
 				.optional(true)
-				.defaultValue(Data.of("*"))
+				.defaultValue("*")
 			// Access-Control-Request-Method
 				)
 			.add(new Parameter("origin")
@@ -94,7 +88,7 @@ public class CorsFilter extends Filter
 				.description("The Access-Control-Allow-Origin response header indicates whether the response can be shared with requesting code from the given origin. Only a single origin can be specified. If the server supports clients from multiple origins, it must return the origin for the specific client making the request. If the value '*' is used, the value is copied from the request 'Host' header.")
 				.format(Parameter.Format.TEXT)
 				.optional(true)
-				.defaultValue(Data.of("*"))
+				.defaultValue("*")
 				)
 			// Host
 			// Vary: Origin
@@ -103,7 +97,7 @@ public class CorsFilter extends Filter
 				.description("The Access-Control-Allow-Headers response header is used in response to a preflight request which includes the Access-Control-Request-Headers to indicate which HTTP headers can be used during the actual request. The value shoulld be a list of headers, separated by commas. If the special value '*' is used, the value is copied from the request 'Access-Control-Request-Headers' header.")
 				.format(Parameter.Format.TEXT)
 				.optional(true)
-				.defaultValue(Data.of("*"))
+				.defaultValue("*")
 				);
 			// Access-Control-Request-Headers
 	}

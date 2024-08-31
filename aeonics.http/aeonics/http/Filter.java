@@ -1,9 +1,3 @@
-/*
- * Copyright (c) Aeonics srl and/or its respectful owner. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER
- *
- * This material is subject to the Aeonics Commercial License agreement.
- */
 package aeonics.http;
 
 import aeonics.data.Data;

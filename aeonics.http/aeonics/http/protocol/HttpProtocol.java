@@ -15,11 +15,11 @@ public interface HttpProtocol
 	static Collection<HttpProtocol> active = new ConcurrentLinkedDeque<>();
 	static void watch(HttpProtocol p)
 	{
-		p.connection().onClose().then((c) -> active.remove(p));
+		p.connection().onClose().then((x, c) -> active.remove(p));
 		if( p.connection().active() ) active.add(p);
 	}
 	
 	public Network.Connection connection();
 	
-	public Callback<Message> onRequest();
+	public Callback<Message, HttpProtocol> onRequest();
 }

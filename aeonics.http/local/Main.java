@@ -79,19 +79,19 @@ public class Main extends Plugin
 			.description("If set to true, this parameter enables HTTPS. If the certificate and key are not provided, a new self-signed certificate will be generated.")
 			.format(Parameter.Format.BOOLEAN)
 			.optional(true)
-			.defaultValue(Data.of(true)));
+			.defaultValue(true));
 		c.declare(HttpServer.class, new Parameter("default.port")
 			.summary("Default HTTP port")
 			.description("The port number to use for the default HTTP server.")
 			.format(Parameter.Format.NUMBER)
 			.optional(true)
-			.defaultValue(Data.of(443)));
+			.defaultValue(443));
 		c.declare(HttpServer.class, new Parameter("default.address")
 			.summary("Default HTTP listening IP address")
 			.description("The IP address the default HTTP server will listen to. IPv4 or IPv6 can be specified depending on the system capabilities.")
 			.format(Parameter.Format.TEXT)
 			.optional(true)
-			.defaultValue(Data.of("0.0.0.0")));
+			.defaultValue("0.0.0.0"));
 		c.declare(HttpServer.class, new Parameter("initialized")
 			.summary("Default HTTP server has been initialized")
 			.description("This parameter defines if the default HTTP server has already been initialized (true) or if it should done when starting the run phase (false)."
@@ -99,7 +99,7 @@ public class Main extends Plugin
 			.format(Parameter.Format.BOOLEAN)
 			.rule(Parameter.Rule.BOOLEAN)
 			.optional(true)
-			.defaultValue(Data.of(false)));
+			.defaultValue(false));
 	}
 
 	private static boolean hasDefaultHttpSetup = false;
@@ -109,7 +109,7 @@ public class Main extends Plugin
 			.template()
 			.summary("Test endpoint")
 			.description("This endpoint returns the same response all the time. If this endpoint responds, it means that the system is up and running.")
-			.build()
+			.create()
 			.<Rest.Type>cast()
 			.process(() -> Data.map().put("success", true))
 			.url("/api/ping")
@@ -119,25 +119,25 @@ public class Main extends Plugin
 		if( hasDefaultHttpSetup ) return;
 		Manager.of(Config.class).set(HttpServer.class, "initialized", Data.of(true));
 		
-		Policy.Type policy = new Policy.Allow().template().build(Data.map().put("scope", "http"));
+		Policy.Type policy = new Policy.Allow().template().create(Data.map().put("scope", "http"));
 		policy.name("Allow http for everyone by default");
-		policy.addRelation("rule", new Rule.MatchAll().template().build().name("Everyone"));
+		policy.addRelation("rule", new Rule.MatchAll().template().create().name("Everyone"));
 		
-		Action.Type router = (Action.Type) Factory.of(Action.class).get(Router.class).build(
+		Action.Type router = (Action.Type) Factory.of(Action.class).get(Router.class).create(
 				Data.map().put("allfilters", true).put("allendpoints", true))
 			.name("Default router")
-			.addRelation("destinations", new HttpResponse().template().build().name("Http responder"), 
+			.addRelation("destinations", new HttpResponse().template().create().name("Http responder"), 
 				Data.map().put("input", "response").put("output", "response"));
 		
-		new CorsFilter().template().build().name("CORS Filter");
-		new GzipFilter().template().build().name("GZIP Filter");
-		new HeadersFilter().template().build().name("Custom headers filter");
-		new OptionsMethodFilter().template().build().name("Options method filter");
+		new CorsFilter().template().create().name("CORS Filter");
+		new GzipFilter().template().create().name("GZIP Filter");
+		new HeadersFilter().template().create().name("Custom headers filter");
+		new OptionsMethodFilter().template().create().name("Options method filter");
 		
-		String queue = new Queue().template().build(Data.map().put("concurrency", Hardware.CPU.cores())
+		String queue = new Queue().template().create(Data.map().put("concurrency", Hardware.CPU.cores())
 			.put("actions", Data.list().add(Data.map().put("id", router.id()).put("input", "request")))
 			).name("Http request queue").id();
-		String topic = new Topic().template().build(Data.map().put("queues", Data.list()
+		String topic = new Topic().template().create(Data.map().put("queues", Data.list()
 			.add(Data.map().put("id", queue).put("binding", "#")))
 			).name("http").id();
 		
@@ -172,7 +172,7 @@ public class Main extends Plugin
 		if( port <= 0 ) port = ssl ? 443 : 80;
 		Data address = c.get(HttpServer.class, "default.address");
 		
-		new HttpServer().template().build(Data.map()
+		new HttpServer().template().create(Data.map()
 			.put("address", address)
 			.put("port", port)
 			.put("certificate", crt)
@@ -194,10 +194,10 @@ public class Main extends Plugin
 		// endpoint is fast to find.
 		// Therefore, we declare the endpoint here so that it is more likely to be last
 		// in the registry iterator.
-		new Endpoint.File().template().build(Data.map().put("filter", "/"))
+		new Endpoint.File().template().create(Data.map().put("filter", "/"))
 			.addRelation("storage", new Storage.File()
 				.template()
-				.build(Data.map().put("root", "www")).name("Web root storage"));
+				.create(Data.map().put("root", "www")).name("Web root storage"));
 	}
 	
 	private static Tuple<Data, Data> generateSelfSignedCertificate()

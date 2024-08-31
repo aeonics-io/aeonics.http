@@ -42,7 +42,7 @@ public class HttpServer extends Origin
 			}
 			final boolean tls = server.isSecure();
 			
-			server.onAccept().then((connection) ->
+			server.onAccept().then((connection, self) ->
 			{
 				HttpProtocol p = null;
 				if( connection.alpn().isEmpty() || connection.alpn().equals("http/1.1") || connection.alpn().equals("http/1.0") )
@@ -54,7 +54,7 @@ public class HttpServer extends Origin
 					Manager.of(Logger.class).warning(HttpServer.class, "Unsupported protocol version: {}", connection.alpn());
 				}
 				
-				p.onRequest().then((m) -> 
+				p.onRequest().then((m, protocol) -> 
 				{
 					try
 					{
@@ -158,12 +158,12 @@ public class HttpServer extends Origin
 				.description("The port number to listen on.")
 				.rule(Parameter.Rule.DIGIT)
 				.format(Parameter.Format.NUMBER)
-				.defaultValue(Data.of(80)))
+				.defaultValue(80))
 			.add(new Parameter("address")
 				.summary("Address")
 				.description("The ip address binding to listen on.")
 				.format(Parameter.Format.TEXT)
-				.defaultValue(Data.of("0.0.0.0")))
+				.defaultValue("0.0.0.0"))
 			.add(new Parameter("certificate")
 				.summary("Certificate")
 				.description("The HTTPS full certificate chain to use. Leave this value empty if the connection should use plain HTTP instead of HTTPS.")
@@ -174,13 +174,14 @@ public class HttpServer extends Origin
 				.description("The private key that matches the HTTPS certificate. Leave this value empty if the connection should use plain HTTP instead of HTTPS.")
 				.format(Parameter.Format.TEXT)
 				.optional(true))
-			.builder((data, instance) -> {
+			.onCreate((data, instance) -> 
+			{
 				instance.stop();
 				if( Manager.of(Lifecycle.class).phase() == Lifecycle.Phase.RUN )
 					instance.start(); 
-				Registry.add(instance);
 			})
-			.modifier((data, instance) -> { 
+			.onUpdate((data, instance) -> 
+			{ 
 				instance.stop();
 				if( Manager.of(Lifecycle.class).phase() == Lifecycle.Phase.RUN )
 					instance.start(); 
