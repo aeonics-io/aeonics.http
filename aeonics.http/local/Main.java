@@ -117,7 +117,7 @@ public class Main extends Plugin
 		
 		hasDefaultHttpSetup = Manager.of(Config.class).get(HttpServer.class, "initialized").asBool();
 		if( hasDefaultHttpSetup ) return;
-		Manager.of(Config.class).set(HttpServer.class, "initialized", Data.of(true));
+		Manager.of(Config.class).set(HttpServer.class, "initialized", true);
 		
 		Policy.Type policy = new Policy.Allow().template().create(Data.map().put("scope", "http"));
 		policy.name("Allow http for everyone by default");
