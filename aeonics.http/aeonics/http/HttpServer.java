@@ -116,7 +116,8 @@ public class HttpServer extends Origin
 					if( token != null && token.isValid() && token.inScope("http") )
 					{
 						current = token.user();
-						request.metadata().put("token", token);
+						if( current == null ) current = User.ANONYMOUS;
+						else request.metadata().put("token", token);
 					}
 				}
 			}

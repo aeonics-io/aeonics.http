@@ -28,7 +28,6 @@ import aeonics.template.Factory;
 import aeonics.template.Parameter;
 import aeonics.manager.Lifecycle.Phase;
 import aeonics.manager.Logger;
-import aeonics.util.Callback;
 import aeonics.util.Hardware;
 import aeonics.util.Tuples.Tuple;
 
@@ -39,13 +38,13 @@ public class Main extends Plugin
 	
 	public void start()
 	{
-		Lifecycle.on(Phase.LOAD, Callback.once(() -> onLoad()));
-		Lifecycle.on(Phase.CONFIG, Callback.once(() -> onConfig()));
-		Lifecycle.on(Phase.RUN, Callback.once(() -> onRun()));
-		Lifecycle.after(Phase.RUN, Callback.once(() -> onAfterRun()));
+		Lifecycle.on(Phase.LOAD, this::onLoad);
+		Lifecycle.on(Phase.CONFIG, this::onConfig);
+		Lifecycle.on(Phase.RUN, this::onRun);
+		Lifecycle.after(Phase.RUN, this::onAfterRun);
 	}
 	
-	private static void onLoad()
+	private void onLoad()
 	{
 		Factory.add(new Router());
 		Factory.add(new Endpoint.File());
@@ -58,7 +57,7 @@ public class Main extends Plugin
 		Factory.add(new HttpResponse());
 	}
 	
-	private static void onConfig()
+	private void onConfig()
 	{
 		Config c = Manager.of(Config.class);
 		
@@ -102,8 +101,8 @@ public class Main extends Plugin
 			.defaultValue(false));
 	}
 
-	private static boolean hasDefaultHttpSetup = false;
-	private static void onRun()
+	private boolean hasDefaultHttpSetup = false;
+	private void onRun()
 	{
 		new Endpoint.Rest() { }
 			.template()
@@ -119,12 +118,12 @@ public class Main extends Plugin
 		if( hasDefaultHttpSetup ) return;
 		Manager.of(Config.class).set(HttpServer.class, "initialized", true);
 		
-		Policy.Type policy = new Policy.Allow().template().create(Data.map().put("scope", "http"));
+		Policy.Type policy = new Policy.Allow().template().create(Data.map().put("parameters", Data.map().put("scope", "http")));
 		policy.name("Allow http for everyone by default");
 		policy.addRelation("rule", new Rule.MatchAll().template().create().name("Everyone"));
 		
 		Action.Type router = (Action.Type) Factory.of(Action.class).get(Router.class).create(
-				Data.map().put("allfilters", true).put("allendpoints", true))
+				Data.map().put("parameters", Data.map().put("allfilters", true).put("allendpoints", true)))
 			.name("Default router")
 			.addRelation("destinations", new HttpResponse().template().create().name("Http responder"), 
 				Data.map().put("input", "response").put("output", "response"));
@@ -134,12 +133,12 @@ public class Main extends Plugin
 		new HeadersFilter().template().create().name("Custom headers filter");
 		new OptionsMethodFilter().template().create().name("Options method filter");
 		
-		String queue = new Queue().template().create(Data.map().put("concurrency", Hardware.CPU.cores())
-			.put("actions", Data.list().add(Data.map().put("id", router.id()).put("input", "request")))
-			).name("Http request queue").id();
-		String topic = new Topic().template().create(Data.map().put("queues", Data.list()
-			.add(Data.map().put("id", queue).put("binding", "#")))
-			).name("http").id();
+		Queue.Type queue = new Queue().template().create(Data.map().put("parameters", Data.map().put("concurrency", Hardware.CPU.cores())))
+			.addRelation("actions", router, Data.map().put("input", "request"))
+			.name("Http request queue");
+		Topic.Type topic = new Topic().template().create()
+			.addRelation("queues", queue, Data.map().put("binding", "#"))
+			.name("http");
 		
 		// check default https certificate/key
 		Config c = Manager.of(Config.class);
@@ -172,19 +171,17 @@ public class Main extends Plugin
 		if( port <= 0 ) port = ssl ? 443 : 80;
 		Data address = c.get(HttpServer.class, "default.address");
 		
-		new HttpServer().template().create(Data.map()
+		new HttpServer().template().create(Data.map().put("parameters", Data.map()
 			.put("address", address)
 			.put("port", port)
 			.put("certificate", crt)
-			.put("key", key)
-			.put("topics", Data.list()
-				.add(Data.map()
-					.put("id", topic)
-					.put("channel", "request"))))
+			.put("key", key)))
+			.addRelation("topics", topic, Data.map()
+				.put("channel", "request"))
 			.name("Http Server");
 	}
 	
-	private static void onAfterRun()
+	private void onAfterRun()
 	{
 		if( hasDefaultHttpSetup ) return;
 		
@@ -194,13 +191,13 @@ public class Main extends Plugin
 		// endpoint is fast to find.
 		// Therefore, we declare the endpoint here so that it is more likely to be last
 		// in the registry iterator.
-		new Endpoint.File().template().create(Data.map().put("filter", "/"))
+		new Endpoint.File().template().create(Data.map().put("parameters", Data.map().put("filter", "/")))
 			.addRelation("storage", new Storage.File()
 				.template()
-				.create(Data.map().put("root", "www")).name("Web root storage"));
+				.create(Data.map().put("parameters", Data.map().put("root", "www"))).name("Web root storage"));
 	}
 	
-	private static Tuple<Data, Data> generateSelfSignedCertificate()
+	private Tuple<Data, Data> generateSelfSignedCertificate()
 	{
 		long start = System.currentTimeMillis();
 		Manager.of(Logger.class).info(HttpServer.class, "Generating self-signed HTTPS certificate...");

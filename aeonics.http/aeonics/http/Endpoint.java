@@ -119,6 +119,8 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		public abstract Data process(Message request) throws Exception;
 		
 		@Override
+		public Data export() { return super.export().put("method", method()).put("url", url()); }
+		@Override
 		public String name() { return method() + " " + url(); }
 		@Override
 		public <T extends Entity> T name(String value) { return (T) this; }
