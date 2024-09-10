@@ -106,6 +106,7 @@ public class Main extends Plugin
 	{
 		new Endpoint.Rest() { }
 			.template()
+			.returns("This endpoint returns {\"success\": true}.")
 			.summary("Test endpoint")
 			.description("This endpoint returns the same response all the time. If this endpoint responds, it means that the system is up and running.")
 			.create()
@@ -191,7 +192,7 @@ public class Main extends Plugin
 		// endpoint is fast to find.
 		// Therefore, we declare the endpoint here so that it is more likely to be last
 		// in the registry iterator.
-		new Endpoint.File().template().create(Data.map().put("parameters", Data.map().put("filter", "/")))
+		new Endpoint.File().template().create()
 			.addRelation("storage", new Storage.File()
 				.template()
 				.create(Data.map().put("parameters", Data.map().put("root", "www"))).name("Web root storage"));

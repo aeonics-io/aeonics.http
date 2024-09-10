@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,7 +18,6 @@ import aeonics.entity.security.User;
 import aeonics.template.Item;
 import aeonics.template.Parameter;
 import aeonics.template.Relationship;
-import aeonics.template.Template;
 import aeonics.util.StringUtils;
 import aeonics.util.Tuples.Tuple;
 import aeonics.util.Functions.BiConsumer;
@@ -32,6 +32,42 @@ import aeonics.util.Functions.TriFunction;
  */
 public abstract class Endpoint extends Item<Endpoint.Type>
 {
+	/**
+	 * Superclass template for endpoints
+	 */
+	public static class Template extends aeonics.template.Template<Endpoint.Type>
+	{
+		public Template(Class<? extends Endpoint.Type> target, Class<? extends Endpoint> type)
+		{
+			super(target, type, Endpoint.class);
+		}
+		
+		/**
+		 * Documentation of the return value of the endpoint
+		 */
+		private String returns = null;
+		
+		/**
+		 * Returns the documentation of the endpoint return value
+		 * @return the documentation of the endpoint return value
+		 */
+		public String returns() { return returns; }
+		
+		/**
+		 * Sets the documentation of the endpoint return value
+		 * @param value the documentation of the endpoint return value
+		 * @return this
+		 */
+		public Endpoint.Template returns(String value) { returns = value; return this; }
+		
+		@Override
+		public Data export()
+		{
+			return super.export()
+				.put("returns", returns());
+		}
+	}
+	
 	/**
 	 * This is the base endpoint.
 	 */
@@ -133,6 +169,12 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 	}
 	
 	protected Class<? extends Endpoint> category() { return Endpoint.class; }
+	
+	@Override
+	public Endpoint.Template template()
+	{
+		return new Endpoint.Template(target(), this.getClass()).creator(creator());
+	}
 	
 	// =========================================
 	//
@@ -616,7 +658,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		protected java.util.function.Supplier<? extends Rest.Type> defaultCreator() { return Rest.Type::new; }
 
 		@Override
-		public Template<? extends Endpoint.Type> template()
+		public Endpoint.Template template()
 		{
 			return super.template()
 				.enforceParameterValidation(false)
@@ -644,7 +686,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			@Override
 			public boolean matches(String url)
 			{
-				String filter = valueOf("filter").asString();
+				String filter = Objects.requireNonNullElse(url(), "/");
 				if( filter != null && !url.startsWith(filter) ) return false;
 				
 				Storage.Type store = store();
@@ -659,7 +701,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			
 			public Data process(Message request) throws Exception
 			{
-				String filter = valueOf("filter").asString();
+				String filter = Objects.requireNonNullElse(url(), "/");
 				Storage.Type store = store();
 				if( store == null ) throw new HttpException(404);
 				
@@ -1243,11 +1285,12 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		protected java.util.function.Supplier<? extends File.Type> defaultCreator() { return File.Type::new; }
 
 		@Override
-		public Template<? extends Endpoint.Type> template()
+		public Endpoint.Template template()
 		{
 			return super.template()
 				.summary("Storage mapping")
-				.description("This endpoint is a direct mapping to a storage location and responds with the target content if present.")
+				.description("This endpoint is a direct mapping to a storage location and responds with the target content if present. "
+					+ "If set, the URL of this endpoint acts as a prefix to filter which requests can be answered by this endpoint.")
 				.add(new Relationship("storage")
 					.category(Storage.class)
 					.summary("Storage")
@@ -1258,11 +1301,8 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					.description("The path prefix in the storage in case content should be fetched from a subdirectory.")
 					.format(Parameter.Format.TEXT)
 					.optional(true).defaultValue(""))
-				.add(new Parameter("filter")
-					.summary("URL prefix")
-					.description("The URL prefix to filter which requests can be answered by this endpoint. The prefix filter should start with '/'.")
-					.format(Parameter.Format.TEXT)
-					.optional(true).defaultValue("/"))
+				.<Endpoint.Template>cast()
+				.returns("This endpoint returns the corresponding content from the storage with a status code 200.")
 				;
 		}
 	}
