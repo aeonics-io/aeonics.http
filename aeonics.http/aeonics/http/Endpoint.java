@@ -195,7 +195,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 	 *     // add all your template documentation
 	 *     .summary("Says hello to the world")
 	 *     
-	 *     .build() // &lt;-- create an instance of the entity and register it in the registry
+	 *     .create() // &lt;-- create an instance of the entity and register it in the registry
 	 *     .&lt;Rest.Type&gt;cast()
 	 *     
 	 *     // set the rest endpoint logic
@@ -226,7 +226,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 	 *     // add all your template documentation
 	 *     .summary("Says hello to the world")
 	 *     
-	 *     .build() // &lt;-- create an instance of the entity and register it in the registry
+	 *     .create() // &lt;-- create an instance of the entity and register it in the registry
 	 *     
 	 *     // set the generic endpoint settings
 	 *     .url("/hello")

@@ -204,12 +204,14 @@ public class Router extends Action
 			if( error instanceof HttpException )
 			{
 				data.put("code", ((HttpException) error).code)
-					.put("body", ((HttpException) error).data);
+					.put("body", ((HttpException) error).data)
+					.put("mime", "application/json");
 			}
 			else
 			{
 				data.put("code", 500)
-					.put("body", error.getMessage());
+					.put("body", error.getMessage())
+					.put("mime", "text/plain");
 			}
 			return data;
 		}
@@ -293,33 +295,41 @@ public class Router extends Action
 		private static final String[] DAYS = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
 	    private static final String[] MONTHS = {"Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
+	    private volatile String dateCache = null;
+	    private volatile long dateAt = 0;
 		private String getDate()
 		{
-			// Example: Wed, 21 Oct 2015 07:28:00 GMT
-
-			ZonedDateTime now = ZonedDateTime.now(ZoneId.of("GMT"));
-			
-			StringBuilder sb = new StringBuilder();
-			sb.append(DAYS[now.getDayOfWeek().getValue()]);
-			sb.append(", ");
-			if( now.getDayOfMonth() < 10 ) sb.append('0');
-			sb.append(now.getDayOfMonth());
-			sb.append(' ');
-			sb.append(MONTHS[now.getMonthValue()]);
-			sb.append(' ');
-			sb.append(now.getYear());
-			sb.append(' ');
-			if( now.getHour() < 10 ) sb.append('0');
-			sb.append(now.getHour());
-			sb.append(':');
-			if( now.getMinute() < 10 ) sb.append('0');
-			sb.append(now.getMinute());
-			sb.append(':');
-			if( now.getSecond() < 10 ) sb.append('0');
-			sb.append(now.getSecond());
-			sb.append(" GMT");
-			
-			return sb.toString();
+			long currentTimeSeconds = System.currentTimeMillis() / 1000;
+			if( currentTimeSeconds != dateAt )
+			{
+				// Example: Wed, 21 Oct 2015 07:28:00 GMT
+	
+				ZonedDateTime now = ZonedDateTime.now(ZoneId.of("GMT"));
+				
+				StringBuilder sb = new StringBuilder();
+				sb.append(DAYS[now.getDayOfWeek().getValue()]);
+				sb.append(", ");
+				if( now.getDayOfMonth() < 10 ) sb.append('0');
+				sb.append(now.getDayOfMonth());
+				sb.append(' ');
+				sb.append(MONTHS[now.getMonthValue()]);
+				sb.append(' ');
+				sb.append(now.getYear());
+				sb.append(' ');
+				if( now.getHour() < 10 ) sb.append('0');
+				sb.append(now.getHour());
+				sb.append(':');
+				if( now.getMinute() < 10 ) sb.append('0');
+				sb.append(now.getMinute());
+				sb.append(':');
+				if( now.getSecond() < 10 ) sb.append('0');
+				sb.append(now.getSecond());
+				sb.append(" GMT");
+				
+				dateCache = sb.toString();
+				dateAt = currentTimeSeconds;
+			}
+			return dateCache;
 		}
 	}
 
