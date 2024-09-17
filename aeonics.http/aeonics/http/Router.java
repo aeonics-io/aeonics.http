@@ -33,7 +33,7 @@ public class Router extends Action
 				return Collections.emptyMap();
 			if( !StringUtils.simplePathMatches(valueOf("host").asString(), message.content().get("headers").asString("host")) )
 				return Collections.emptyMap();
-			if( !StringUtils.simplePathMatches(valueOf("path").asString(), message.content().get("headers").asString("path")) )
+			if( !StringUtils.simplePathMatches(valueOf("path").asString(), message.content().asString("path")) )
 				return Collections.emptyMap();
 
 			Data response = null;
@@ -47,11 +47,9 @@ public class Router extends Action
 			}
 			catch(Exception t)
 			{
-				if( t instanceof HttpException )
-					Manager.of(Logger.class).finer(Endpoint.class, t);
-				else
+				if( !(t instanceof HttpException) )
 					Manager.of(Logger.class).info(Endpoint.class, t);
-				response = handleError(t);
+				response = handleError(t, message);
 			}
 
 			try
@@ -63,8 +61,9 @@ public class Router extends Action
 			}
 			catch(Exception t)
 			{
-				Manager.of(Logger.class).info(Endpoint.class, t);
-				return finalizeResponse(message, handleError(t), start);
+				if( !(t instanceof HttpException) )
+					Manager.of(Logger.class).info(Endpoint.class, t);
+				return finalizeResponse(message, handleError(t, message), start);
 			}
 		}
 		
@@ -198,7 +197,7 @@ public class Router extends Action
 			return null;
 		}
 		
-		private Data handleError(Exception error)
+		private Data handleError(Exception error, Message request)
 		{
 			Data data = Data.map().put("isHttpResponse", true);
 			if( error instanceof HttpException )
@@ -213,6 +212,12 @@ public class Router extends Action
 					.put("body", error.getMessage())
 					.put("mime", "text/plain");
 			}
+			
+			Manager.of(Logger.class).fine(Endpoint.class, "HTTP CODE {} : {} {}", 
+					data.get("code"),
+					request.content().asString("method"),
+					request.content().asString("path"));
+
 			return data;
 		}
 		

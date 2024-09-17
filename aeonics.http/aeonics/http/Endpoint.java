@@ -26,6 +26,7 @@ import aeonics.util.Functions.Function;
 import aeonics.util.Functions.Supplier;
 import aeonics.util.Functions.TriConsumer;
 import aeonics.util.Functions.TriFunction;
+import aeonics.util.Json;
 
 /**
  * This item represents an HTTP endpoint that will produce a response to a request.
@@ -646,6 +647,10 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 						value = p.b.defaultValue();
 					
 					value = p.b.resolve(value, request.content());
+					
+					if( p.b.format().equals(Parameter.Format.JSON) && value.isString() )
+						value = Json.decode(value.asString());
+					
 					if( !p.b.validate(value) )
 						throw new HttpException(400, "Parameter validation failed for " + p.b.name());
 					params.put(p.b.name(), value);
@@ -678,9 +683,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		{
 			public Storage.Type store()
 			{
-				for( Tuple<Entity, Data> r : relations("storage") )
-					return (Storage.Type) r.a;
-				return null;
+				return firstRelation("storage");
 			}
 
 			@Override
