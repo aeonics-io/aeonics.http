@@ -177,7 +177,7 @@ public class Router extends Action
 				{
 					try( AutoCloseable a = Manager.of(Monitor.class).ns(f) )
 					{
-						Data override = f.filter(request);
+						Data override = f.filter(request, response);
 						if( override != null ) return override;
 					}
 				}

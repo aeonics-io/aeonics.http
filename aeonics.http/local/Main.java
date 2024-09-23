@@ -179,7 +179,7 @@ public class Main extends Plugin
 			.put("key", key)))
 			.addRelation("topics", topic, Data.map()
 				.put("channel", "request"))
-			.name("Http Server");
+			.name("Https Server");
 	}
 	
 	private void onAfterRun()
