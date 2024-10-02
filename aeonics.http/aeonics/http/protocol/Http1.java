@@ -2,6 +2,7 @@ package aeonics.http.protocol;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import aeonics.data.Data;
@@ -40,12 +41,16 @@ public class Http1 implements HttpProtocol
 		         {
 					for( byte[] data = c.next(); data != null; data = c.next() )
 					{
-						Message m = parse(data, parseState);
-						if( m != null )
+						do
 						{
-							m.connection(connection());
-							onRequest().trigger(m);
-						}
+							Message m = parse(data, parseState);
+							if( m != null )
+							{
+								m.connection(connection());
+								onRequest().trigger(m);
+							}
+							data = parseState.remaining;
+						} while( data != null && data.length > 0 );
 					} 
 		         } 
 		         catch(HttpParseException e)
@@ -68,6 +73,8 @@ public class Http1 implements HttpProtocol
 		Data request = null;
 		String lastName = null;
 		ByteArrayOutputStream partial = new ByteArrayOutputStream();
+		
+		byte[] remaining = null;
 		
 		int uriSize, headerSize, bodySize;
 		boolean isCR = false; // used in case a \r\n is split in between
@@ -119,8 +126,6 @@ public class Http1 implements HttpProtocol
 		public int status() { return status; }
 	}
 	
-	static class Incomplete extends RuntimeException { }
-	
 	private static final int MAX_URI_SIZE = 8000; // rfc7230#section-3.1.1
 	private static final int MAX_HEADER_SIZE = 4096; // 4KB
 	private static final int MAX_BODY_SIZE = 5242880; // 5MB
@@ -164,6 +169,12 @@ public class Http1 implements HttpProtocol
 			}
 		}
 		catch(Incomplete i) { /* normal, just proceed */ }
+		
+		// keep track of remaining data (if any)
+		if( state.i < state.length )
+			state.remaining = Arrays.copyOfRange(data, state.i, state.length);
+		else
+			state.remaining = null;
 		
 		if( state.mode == Mode.MODE_8_COMPLETE )
 		{
@@ -530,7 +541,9 @@ public class Http1 implements HttpProtocol
 			state.partial.write(data, state.mark, state.length - state.mark);
 			throw new Incomplete();
 		}
-		state.partial.write(data, state.mark, state.contentLength - state.partial.size());
+		int len = state.contentLength - state.partial.size();
+		state.partial.write(data, state.mark, len);
+		state.i += len;
 		// from here on, the entire body is stored in state.partial
 		
 		// =====================

@@ -48,6 +48,7 @@ public class Main extends Plugin
 	{
 		Factory.add(new Router());
 		Factory.add(new Endpoint.File());
+		Factory.add(new Endpoint.Websocket());
 		Factory.add(new CorsFilter());
 		Factory.add(new GzipFilter());
 		Factory.add(new HeadersFilter());
@@ -114,6 +115,10 @@ public class Main extends Plugin
 			.process(() -> Data.map().put("success", true))
 			.url("/api/ping")
 			.method("GET");
+			
+		new Endpoint.Websocket().template()
+			.create()
+			.url("/api/ws");
 		
 		hasDefaultHttpSetup = Manager.of(Config.class).get(HttpServer.class, "initialized").asBool();
 		if( hasDefaultHttpSetup ) return;

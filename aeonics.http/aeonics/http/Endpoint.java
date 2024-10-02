@@ -1,23 +1,34 @@
 package aeonics.http;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import aeonics.data.Data;
+import aeonics.entity.Destination;
 import aeonics.entity.Entity;
 import aeonics.entity.Message;
+import aeonics.entity.Queue;
 import aeonics.entity.Registry;
 import aeonics.entity.Storage;
+import aeonics.entity.Topic;
+import aeonics.entity.security.Token;
 import aeonics.entity.security.User;
+import aeonics.manager.Manager;
+import aeonics.manager.Security;
+import aeonics.template.Channel;
+import aeonics.template.Factory;
 import aeonics.template.Item;
 import aeonics.template.Parameter;
 import aeonics.template.Relationship;
 import aeonics.util.StringUtils;
 import aeonics.util.Tuples.Tuple;
+import aeonics.util.Callback;
 import aeonics.util.Functions.BiConsumer;
 import aeonics.util.Functions.BiFunction;
 import aeonics.util.Functions.Function;
@@ -763,6 +774,191 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				.<Endpoint.Template>cast()
 				.returns("This endpoint returns the corresponding content from the storage with a status code 200.")
 				;
+		}
+	}
+	
+	// =========================================
+	//
+	// WEBSOCKET ENDPOINT
+	//
+	// =========================================
+	
+	public static class Websocket extends Endpoint
+	{
+		public static class Type extends Endpoint.Type
+		{
+			public Type()
+			{
+				super();
+				internal(true);
+			}
+			
+			private Data upgradeResponse(Message request) throws Exception
+			{
+				Data headers = request.content().get("headers");
+				if( !headers.containsKey("upgrade") || !headers.asString("upgrade").equalsIgnoreCase("websocket") || 
+					!headers.containsKey("connection") || !headers.asString("connection").toLowerCase().contains("upgrade") )
+					return null;
+				
+				if( !headers.containsKey("sec-websocket-version") || !headers.asString("sec-websocket-version").equals("13") )
+					throw new HttpException(426, "Unsupported Websocket Version");
+				if( !headers.containsKey("sec-websocket-key") || !StringUtils.isBase64(headers.asString("sec-websocket-key")) )
+					throw new HttpException(426, "Invalid Websocket Key");
+				
+				String key = headers.asString("sec-websocket-key") + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+				key = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1")
+					.digest(key.getBytes(StandardCharsets.ISO_8859_1)));
+				
+				return Data.map().put("isHttpResponse", true)
+					.put("code", 101)
+					.put("headers", Data.map()
+						.put("Upgrade", headers.get("upgrade"))
+						.put("Sec-Websocket-Accept", key)
+						);
+			}
+
+			@Override
+			public Data process(Message request) throws Exception
+			{
+				if( User.ANONYMOUS.id().equals(request.user()) )
+				{
+					// check the Sec-WebSocket-Protocol header for auth
+					if( !request.content().get("headers").isEmpty("sec-websocket-protocol") )
+					{
+						Token token = Manager.of(Security.class).authenticate(request.content().get("headers").asString("sec-websocket-protocol"), true);
+						if( token != null && token.isValid() && token.inScope("http") )
+						{
+							request.metadata().put("token", token);
+							
+							User.Type current = token.user();
+							if( current != null ) request.user(current.id()); 
+						}
+					}
+				}
+					
+				Data params = collectAndValidateParameters(request);
+				Data response = upgradeResponse(request);
+				
+				final User.Type user = Registry.of(User.class).get(request.user());
+				final aeonics.http.protocol.Websocket ws = new aeonics.http.protocol.Websocket(request.connection());
+				
+				if( !params.isEmpty("publish") )
+				{
+					ws.onRequest().then((message, websocket) ->
+					{
+						String topic = valueOf("publish", message.content()).asString();
+						String key = valueOf("key", message.content()).asString();
+						
+						if( !Manager.of(Security.class).granted(user, topic, response) )
+						{
+							((aeonics.http.protocol.Websocket)websocket).close(1008);
+							return;
+						}
+						
+						message.key(key);
+						
+						Topic.Type t = Registry.of(Topic.class).get(topic);
+						if( t != null )
+							t.publish(message);
+					});
+					
+					ws.connection().onClose().then(Callback.once((x, y) -> 
+					{
+						ws.onRequest().clear();
+					}));
+				}
+				
+				if( !params.isEmpty("subscribe") )
+				{
+					String topic = params.asString("subscribe");
+					if( !Manager.of(Security.class).granted(user, topic, response) )
+						throw new HttpException(403, "Subscription Denied");
+					
+					Topic.Type t = Registry.of(Topic.class).get(topic);
+					if( t == null ) throw new HttpException(413, "Unknown subscription topic");
+					
+					Queue.Type q = Factory.of(Queue.class).get(Queue.class).create()
+						.parameter("concurrency", 1);
+					Destination.Type d = new Destination() { }
+						.template()
+						.summary("Websocket")
+						.<Destination.Template>cast()
+						.input(new Channel("in"))
+						.create()
+						.process((message, input) ->
+						{
+							ws.send(message.content().asString().getBytes(StandardCharsets.ISO_8859_1), aeonics.http.protocol.Websocket.OP_TEXT);
+						});
+					q.addRelation("destinations", d, Data.map().put("input", "in"));
+					t.addRelation("queues", q, Data.map().put("binding", params.asString("filter")));
+					
+					ws.connection().onClose().then(Callback.once((x, y) -> 
+					{
+						Registry.of(Queue.class).remove(q.id());
+						Registry.of(Destination.class).remove(d.id());
+						t.removeRelation("queues", q);
+						q.removeRelation("destinations", d);
+					}));
+				}
+				
+				return response;
+			}
+			
+			private Data collectAndValidateParameters(Message request) throws Exception
+			{
+				Data params = Data.map();
+				for( Tuple<Data, Parameter> p : parameters().values() )
+				{
+					Data value = request.content().get("get").get(p.b.name());
+					if( value.isNull() )
+						value = p.b.defaultValue();
+					value = p.b.resolve(value, request.content());
+					
+					if( !p.b.validate(value) )
+						throw new HttpException(400, "Parameter validation failed for " + p.b.name());
+					params.put(p.b.name(), value);
+				}
+				return params;
+			}
+		}
+		
+		protected Class<? extends Websocket.Type> defaultTarget() { return Websocket.Type.class; }
+		protected java.util.function.Supplier<? extends Websocket.Type> defaultCreator() { return Websocket.Type::new; }
+
+		@Override
+		public Endpoint.Template template()
+		{
+			return super.template()
+				.summary("Websocket endpoint")
+				.description("Generic websocket endpoint that publishes and subscribes to the specified topics. A security check is performed by default "
+						+ "to verify if the authenticated user is allowed to publish or subscribe to target topics. The authentication token must be sent "
+						+ "in the 'Sec-WebSocket-Protocol' header if not set in the regular 'Authentication' header.")
+				.add(new Parameter("subscribe")
+					.summary("Subscribe")
+					.description("The name or id of the topic to subscribe to.")
+					.format(Parameter.Format.TEXT)
+					.optional(true))
+				.add(new Parameter("filter")
+					.summary("Filter")
+					.description("The filter for the subscription.")
+					.format(Parameter.Format.TEXT)
+					.optional(true)
+					.defaultValue("#"))
+				.add(new Parameter("publish")
+					.summary("Publish")
+					.description("The name or id of the topic to publish on.")
+					.format(Parameter.Format.TEXT)
+					.optional(true))
+				.add(new Parameter("key")
+					.summary("Key")
+					.description("The publishing key to publish messages.")
+					.format(Parameter.Format.TEXT)
+					.optional(true)
+					.defaultValue("websocket"))
+				.<Endpoint.Template>cast()
+				.returns("This endpoint opens the websocket communication.")
+				.enforceParameterValidation(false)
+				.removeParameter("name");
 		}
 	}
 }

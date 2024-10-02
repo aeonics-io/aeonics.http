@@ -35,7 +35,7 @@ public class Router extends Action
 				return Collections.emptyMap();
 			if( !StringUtils.simplePathMatches(valueOf("path").asString(), message.content().asString("path")) )
 				return Collections.emptyMap();
-
+			
 			Data response = null;
 			long start = System.nanoTime();
 			
