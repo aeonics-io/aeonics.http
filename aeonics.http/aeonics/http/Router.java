@@ -92,7 +92,7 @@ public class Router extends Action
 		private Data dataResponse(Data data)
 		{
 			if( data == null ) data = Data.map();
-			if( !data.isMap() || !data.asBool("isHttpResponse") ) data = Data.map().put("body", data);
+			if( !data.isMap() || !data.asBool("isHttpResponse") ) data = Data.map().put("body", data).put("mime", "application/json");
 			
 			if( !data.isNumber("code") ) data.put("code", !data.isMap("body") && !data.isList("body") && data.isEmpty("body") ? 204 : 200);
 			if( !data.isMap("headers") ) data.put("headers", Data.map());
