@@ -10,6 +10,8 @@ import aeonics.entity.Message;
 import aeonics.manager.Logger;
 import aeonics.manager.Manager;
 import aeonics.manager.Network;
+import aeonics.manager.Timeout;
+import aeonics.manager.Timeout.Tracker;
 import aeonics.util.Callback;
 import aeonics.util.Json;
 
@@ -71,6 +73,21 @@ public class Websocket implements HttpProtocol
 		             busy.set(false);
 		         }
 		     }
+		});
+		
+		// send PING request every 10s
+		Manager.of(Timeout.class).watch(new Tracker<Websocket>(this)
+		{
+			int count = 0;
+			public long delay()
+			{
+				if( connection == null || !connection.active() ) return -1;
+				
+				if( count > 0 )
+					send(null, OP_PING);
+				count++;
+				return Math.max(0, 10_000);
+			}
 		});
 	}
 	
@@ -238,10 +255,19 @@ public class Websocket implements HttpProtocol
 		try { this.connection.close(); } catch(Exception e) { /* ignore */ }
 	}
 	
-	public void send(byte[] payload, int OPCODE)
+	public synchronized void send(byte[] payload, int OPCODE)
 	{
 		try( ByteArrayOutputStream o = new ByteArrayOutputStream() )
 		{
+			if( payload == null || payload.length == 0 )
+			{
+				int b = 0x80 | (OPCODE & 0xF);
+				o.write(b);
+				o.write(0);
+				this.connection.write(o.toByteArray());
+				return;
+			}
+				
 			int maxSendSize =  524288; // 512KB
 			
 			for( int start = 0; start < payload.length; start += maxSendSize )
