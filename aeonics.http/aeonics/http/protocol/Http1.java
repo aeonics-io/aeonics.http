@@ -168,14 +168,18 @@ public class Http1 implements HttpProtocol
 				default: break;
 			}
 		}
-		catch(Incomplete i) { /* normal, just proceed */ }
+		catch(Incomplete i)
+		{
+			/* normal, just proceed */ 
+			state.mark = state.i = state.length;
+		}
 		
 		// keep track of remaining data (if any)
 		if( state.i < state.length )
 			state.remaining = Arrays.copyOfRange(data, state.i, state.length);
 		else
 			state.remaining = null;
-		
+
 		if( state.mode == Mode.MODE_8_COMPLETE )
 		{
 			Message m = new Message(state.request.asString("method") + state.request.asString("path"));
@@ -536,6 +540,7 @@ public class Http1 implements HttpProtocol
 			state.contentLength = state.request.get("headers").asInt("content-length");
 		if( state.contentLength > MAX_BODY_SIZE )
 			throw new HttpParseException("Body too large", 431);
+
 		if( state.length - state.mark + state.partial.size() < state.contentLength )
 		{
 			state.partial.write(data, state.mark, state.length - state.mark);
