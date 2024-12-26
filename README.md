@@ -1,6 +1,6 @@
 ## Plugin: "aeonics.http"
 
-This *Nucleus Runtime* plugin provides HTTP server capabilities and defines
+This Aeonics software plugin provides HTTP server capabilities and defines
 high level endpoints.
 
 ## Compile and package

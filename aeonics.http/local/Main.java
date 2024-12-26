@@ -6,6 +6,9 @@ import java.nio.file.Paths;
 import aeonics.Plugin;
 import aeonics.data.Data;
 import aeonics.entity.Action;
+import aeonics.entity.Destination;
+import aeonics.entity.Flow;
+import aeonics.entity.Origin;
 import aeonics.entity.Queue;
 import aeonics.entity.Storage;
 import aeonics.entity.Topic;
@@ -128,11 +131,12 @@ public class Main extends Plugin
 		policy.name("Allow http for everyone by default");
 		policy.addRelation("rule", new Rule.MatchAll().template().create().name("Everyone"));
 		
+		Destination.Type response = new HttpResponse().template().create().name("Http responder");
+		
 		Action.Type router = (Action.Type) Factory.of(Action.class).get(Router.class).create(
 				Data.map().put("parameters", Data.map().put("allfilters", true).put("allendpoints", true)))
 			.name("Default router")
-			.addRelation("destinations", new HttpResponse().template().create().name("Http responder"), 
-				Data.map().put("input", "response").put("output", "response"));
+			.addRelation("destinations", response, Data.map().put("input", "response").put("output", "response"));
 		
 		new CorsFilter().template().create().name("CORS Filter");
 		new GzipFilter().template().create().name("GZIP Filter");
@@ -177,14 +181,24 @@ public class Main extends Plugin
 		if( port <= 0 ) port = ssl ? 443 : 80;
 		Data address = c.get(HttpServer.class, "default.address");
 		
-		new HttpServer().template().create(Data.map().put("parameters", Data.map()
+		Origin.Type origin = new HttpServer().template().create(Data.map().put("parameters", Data.map()
 			.put("address", address)
 			.put("port", port)
 			.put("certificate", crt)
 			.put("key", key)))
 			.addRelation("topics", topic, Data.map()
-				.put("channel", "request"))
+				.put("output", "request"))
 			.name("Https Server");
+		
+		Factory.of(Flow.class).get(Flow.class).create()
+			.addRelation("origins", origin, Data.map().put("x", 1).put("y", 0))
+			.addRelation("topics", topic, Data.map().put("x", 1).put("y", 2))
+			.addRelation("queues", queue, Data.map().put("x", 3).put("y", 2))
+			.addRelation("actions", router, Data.map().put("x", 3).put("y", 4))
+			.addRelation("destinations", response, Data.map().put("x", 1).put("y", 4))
+			.name("Http")
+			.parameter("notes", "This data flow regroups the http server and routing entities.")
+			;
 	}
 	
 	private void onAfterRun()
