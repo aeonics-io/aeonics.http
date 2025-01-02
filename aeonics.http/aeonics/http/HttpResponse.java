@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import aeonics.data.Data;
-import aeonics.entity.Destination;
 import aeonics.entity.Message;
+import aeonics.entity.Step.Destination;
 import aeonics.manager.Logger;
 import aeonics.manager.Manager;
 import aeonics.template.Channel;
@@ -18,9 +18,10 @@ public class HttpResponse extends Destination
 	private static class Type extends Destination.Type
 	{
 		@Override
-		public void accept(Message message, String input)
+		public void process(Message message, String input)
 		{
 			if( !input.equals("response") ) return;
+			if( message.connection() == null ) throw new IllegalStateException("The message does not have an active connection bound");
 			
 			int code = 0;
 			try

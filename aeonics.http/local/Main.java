@@ -5,11 +5,12 @@ import java.nio.file.Paths;
 
 import aeonics.Plugin;
 import aeonics.data.Data;
-import aeonics.entity.Action;
-import aeonics.entity.Destination;
 import aeonics.entity.Flow;
-import aeonics.entity.Origin;
 import aeonics.entity.Queue;
+import aeonics.entity.Step;
+import aeonics.entity.Step.Action;
+import aeonics.entity.Step.Destination;
+import aeonics.entity.Step.Origin;
 import aeonics.entity.Storage;
 import aeonics.entity.Topic;
 import aeonics.entity.security.Policy;
@@ -133,10 +134,11 @@ public class Main extends Plugin
 		
 		Destination.Type response = new HttpResponse().template().create().name("Http responder");
 		
-		Action.Type router = (Action.Type) Factory.of(Action.class).get(Router.class).create(
+		Action.Type router = Factory.of(Step.class).get(Router.class).create(
 				Data.map().put("parameters", Data.map().put("allfilters", true).put("allendpoints", true)))
 			.name("Default router")
-			.addRelation("destinations", response, Data.map().put("input", "response").put("output", "response"));
+			.<Action.Type>cast()
+			.link("response", response, "response");
 		
 		new CorsFilter().template().create().name("CORS Filter");
 		new GzipFilter().template().create().name("GZIP Filter");
@@ -144,10 +146,10 @@ public class Main extends Plugin
 		new OptionsMethodFilter().template().create().name("Options method filter");
 		
 		Queue.Type queue = new Queue().template().create(Data.map().put("parameters", Data.map().put("concurrency", Hardware.CPU.cores())))
-			.addRelation("actions", router, Data.map().put("input", "request"))
+			.link("data", router, "request")
 			.name("Http request queue");
 		Topic.Type topic = new Topic().template().create()
-			.addRelation("queues", queue, Data.map().put("binding", "#"))
+			.link("subscribe", queue, "data", Data.map().put("binding", "#"))
 			.name("http");
 		
 		// check default https certificate/key
@@ -186,16 +188,15 @@ public class Main extends Plugin
 			.put("port", port)
 			.put("certificate", crt)
 			.put("key", key)))
-			.addRelation("topics", topic, Data.map()
-				.put("output", "request"))
+			.link("request", topic, "publish")
 			.name("Https Server");
 		
 		Factory.of(Flow.class).get(Flow.class).create()
-			.addRelation("origins", origin, Data.map().put("x", 1).put("y", 0))
-			.addRelation("topics", topic, Data.map().put("x", 1).put("y", 2))
-			.addRelation("queues", queue, Data.map().put("x", 3).put("y", 2))
-			.addRelation("actions", router, Data.map().put("x", 3).put("y", 4))
-			.addRelation("destinations", response, Data.map().put("x", 1).put("y", 4))
+			.step(origin, 1, 0)
+			.step(topic, 1, 2)
+			.step(queue, 3, 2)
+			.step(router, 3, 4)
+			.step(response, 1, 4)
 			.name("Http")
 			.parameter("notes", "This data flow regroups the http server and routing entities.")
 			;

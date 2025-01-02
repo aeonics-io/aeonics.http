@@ -10,11 +10,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import aeonics.data.Data;
-import aeonics.entity.Destination;
 import aeonics.entity.Entity;
 import aeonics.entity.Message;
 import aeonics.entity.Queue;
 import aeonics.entity.Registry;
+import aeonics.entity.Step;
+import aeonics.entity.Step.Destination;
 import aeonics.entity.Storage;
 import aeonics.entity.Topic;
 import aeonics.entity.security.Token;
@@ -247,7 +248,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 	{
 		/**
 		 * This is the base REST endpoint type.
-		 * <p>Unless overridden, all instances of this class are marked as internal in the constructor.</p>
+		 * <p>Unless overridden, all instances of this class are marked as internal and not snapshotable in the constructor.</p>
 		 */
 		@SuppressWarnings("unchecked")
 		public static class Type extends Endpoint.Type
@@ -256,6 +257,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			{
 				super();
 				internal(true);
+				snapshotMode(SnapshotMode.NONE);
 			}
 
 			@Override
@@ -791,6 +793,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			{
 				super();
 				internal(true);
+				snapshotMode(SnapshotMode.NONE);
 			}
 			
 			private Data upgradeResponse(Message request) throws Exception
@@ -857,9 +860,9 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 						
 						message.key(key);
 						
-						Topic.Type t = Registry.of(Topic.class).get(topic);
-						if( t != null )
-							t.publish(message);
+						Step.Type t = Registry.of(Step.class).get(topic);
+						if( t instanceof Topic.Type )
+							t.<Topic.Type>cast().publish(message);
 					});
 					
 					ws.connection().onClose().then(Callback.once((x, y) -> 
@@ -874,30 +877,31 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					if( !Manager.of(Security.class).granted(user, topic, response) )
 						throw new HttpException(403, "Subscription Denied");
 					
-					Topic.Type t = Registry.of(Topic.class).get(topic);
-					if( t == null ) throw new HttpException(413, "Unknown subscription topic");
+					Step.Type t = Registry.of(Step.class).get(topic);
+					if( !(t instanceof Topic.Type) ) throw new HttpException(413, "Unknown subscription topic");
 					
-					Queue.Type q = Factory.of(Queue.class).get(Queue.class).create()
+					Queue.Type q = Factory.of(Step.class).get(Queue.class).create()
 						.parameter("concurrency", 1);
 					Destination.Type d = new Destination() { }
 						.template()
 						.summary("Websocket")
 						.<Destination.Template>cast()
-						.input(new Channel("in"))
+						.input(new Channel("data").summary("Data").description("Send data to the connected party"))
 						.create()
-						.process((message, input) ->
+						.<Destination.Type>cast()
+						.processor((message, input) ->
 						{
 							ws.send(message.content().asString().getBytes(StandardCharsets.ISO_8859_1), aeonics.http.protocol.Websocket.OP_TEXT);
 						});
-					q.addRelation("destinations", d, Data.map().put("input", "in"));
-					t.addRelation("queues", q, Data.map().put("binding", params.asString("filter")));
+					q.link("data", d, "data");
+					t.link("subscribe", q, "data", Data.map().put("binding", params.asString("filter")));
 					
 					ws.connection().onClose().then(Callback.once((x, y) -> 
 					{
-						Registry.of(Queue.class).remove(q.id());
-						Registry.of(Destination.class).remove(d.id());
-						t.removeRelation("queues", q);
-						q.removeRelation("destinations", d);
+						Registry.of(Step.class).remove(q.id());
+						Registry.of(Step.class).remove(d.id());
+						t.unlink("subscribe", q, "data");
+						q.unlink("data", d, "data");
 					}));
 				}
 				

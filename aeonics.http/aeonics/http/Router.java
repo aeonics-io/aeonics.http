@@ -2,17 +2,14 @@ package aeonics.http;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import aeonics.data.Data;
-import aeonics.entity.Action;
 import aeonics.entity.Entity;
 import aeonics.entity.Message;
 import aeonics.entity.Registry;
+import aeonics.entity.Step.Action;
 import aeonics.manager.Logger;
 import aeonics.manager.Manager;
 import aeonics.manager.Monitor;
@@ -27,14 +24,14 @@ public class Router extends Action
 	private static class Type extends Action.Type
 	{
 		@Override
-		public Map<String, Message> accept(Message message, String input, Set<String> outputs)
+		public Message process(Message message, String input, String output)
 		{
-			if( !outputs.contains("response") )
-				return Collections.emptyMap();
+			if( !output.equals("response") )
+				return null;
 			if( !StringUtils.simplePathMatches(valueOf("host").asString(), message.content().get("headers").asString("host")) )
-				return Collections.emptyMap();
+				return null;
 			if( !StringUtils.simplePathMatches(valueOf("path").asString(), message.content().asString("path")) )
-				return Collections.emptyMap();
+				return null;
 			
 			Data response = null;
 			long start = System.nanoTime();
@@ -67,7 +64,7 @@ public class Router extends Action
 			}
 		}
 		
-		private Map<String, Message> finalizeResponse(Message request, Data response, long start)
+		private Message finalizeResponse(Message request, Data response, long start)
 		{
 			Message r = new Message(request.key());
 			r.connection(request.connection());
@@ -86,7 +83,7 @@ public class Router extends Action
 			r.content().put("version", request.content().get("version"));
 			h.put("X-NS-Process", System.nanoTime() - start);
 			
-			return Collections.singletonMap("response", r);
+			return r;
 		}
 		
 		private Data dataResponse(Data data)
