@@ -12,7 +12,6 @@ import aeonics.entity.Step.Action;
 import aeonics.entity.Step.Destination;
 import aeonics.entity.Step.Origin;
 import aeonics.entity.Storage;
-import aeonics.entity.Topic;
 import aeonics.entity.security.Policy;
 import aeonics.entity.security.Rule;
 import aeonics.http.Endpoint;
@@ -32,7 +31,6 @@ import aeonics.template.Factory;
 import aeonics.template.Parameter;
 import aeonics.manager.Lifecycle.Phase;
 import aeonics.manager.Logger;
-import aeonics.util.Hardware;
 import aeonics.util.Tuples.Tuple;
 
 public class Main extends Plugin
@@ -78,15 +76,15 @@ public class Main extends Plugin
 			.format(Parameter.Format.TEXT)
 			.optional(true)
 			.defaultValue(Data.empty()));
-		c.declare(HttpServer.class, new Parameter("default.tls.enabled")
-			.summary("Enable HTTPS")
-			.description("If set to true, this parameter enables HTTPS. If the certificate and key are not provided, a new self-signed certificate will be generated.")
-			.format(Parameter.Format.BOOLEAN)
-			.optional(true)
-			.defaultValue(true));
-		c.declare(HttpServer.class, new Parameter("default.port")
+		c.declare(HttpServer.class, new Parameter("default.http.port")
 			.summary("Default HTTP port")
 			.description("The port number to use for the default HTTP server.")
+			.format(Parameter.Format.NUMBER)
+			.optional(true)
+			.defaultValue(80));
+		c.declare(HttpServer.class, new Parameter("default.https.port")
+			.summary("Default HTTPS port")
+			.description("The port number to use for the default HTTPS server.")
 			.format(Parameter.Format.NUMBER)
 			.optional(true)
 			.defaultValue(443));
@@ -132,33 +130,44 @@ public class Main extends Plugin
 		policy.name("Allow http for everyone by default");
 		policy.addRelation("rule", new Rule.MatchAll().template().create().name("Everyone"));
 		
-		Destination.Type response = new HttpResponse().template().create().name("Http responder");
-		
-		Action.Type router = Factory.of(Step.class).get(Router.class).create(
-				Data.map().put("parameters", Data.map().put("allfilters", true).put("allendpoints", true)))
-			.name("Default router")
-			.<Action.Type>cast()
-			.link("response", response, "response");
 		
 		new CorsFilter().template().create().name("CORS Filter");
 		new GzipFilter().template().create().name("GZIP Filter");
 		new HeadersFilter().template().create().name("Custom headers filter");
 		new OptionsMethodFilter().template().create().name("Options method filter");
 		
-		Queue.Type queue = new Queue().template().create(Data.map().put("parameters", Data.map().put("concurrency", Hardware.CPU.cores())))
-			.link("data", router, "request")
-			.name("Http request queue");
-		Topic.Type topic = new Topic().template().create()
-			.link("subscribe", queue, "data", Data.map().put("binding", "#"))
-			.name("http");
+		// create the default http and https server
 		
-		// check default https certificate/key
+		Destination.Type response = new HttpResponse().template().create().name("Http responder");
+		Flow.Type flow = Factory.of(Flow.class).get(Flow.class).create()
+			.step(response, 4, 2)
+			.name("Http")
+			.parameter("notes", "This data flow regroups the http server and routing entities.")
+			;
+		
+		createHttpsServer(flow, response);
+		createHttpServer(flow, response);
+	}
+	
+	private void createHttpsServer(Flow.Type flow, Destination.Type response)
+	{
+		Action.Type router = Factory.of(Step.class).get(Router.class).create(
+				Data.map().put("parameters", Data.map().put("allfilters", true).put("allendpoints", true)))
+			.name("Default router")
+			.<Action.Type>cast()
+			.link("response", response, "response");
+		
+		Action.Type queue = Factory.of(Step.class).get(Queue.class)
+			.create()
+			.name("Buffer queue")
+			.<Action.Type>cast()
+			.link("data", router, "request");
+		
 		Config c = Manager.of(Config.class);
 		Data crt = c.get(HttpServer.class, "default.tls.certificate");
 		Data key = c.get(HttpServer.class, "default.tls.private");
-		boolean ssl = c.get(HttpServer.class, "default.tls.enabled").asBool();
 		
-		if( ssl && !crt.isEmpty() && !key.isEmpty() )
+		if( !crt.isEmpty() && !key.isEmpty() )
 		{
 			try
 			{
@@ -172,15 +181,15 @@ public class Main extends Plugin
 				crt = key = Data.empty();
 			}
 		}
-		if( ssl && (crt.isEmpty() || key.isEmpty()) )
+		if( crt.isEmpty() || key.isEmpty() )
 		{
 			Tuple<Data, Data> t = generateSelfSignedCertificate();
 			crt = t.a;
 			key = t.b;
 		}
 		
-		int port = c.get(HttpServer.class, "default.port").asInt();
-		if( port <= 0 ) port = ssl ? 443 : 80;
+		int port = c.get(HttpServer.class, "default.https.port").asInt();
+		if( port <= 0 ) port = 443;
 		Data address = c.get(HttpServer.class, "default.address");
 		
 		Origin.Type origin = new HttpServer().template().create(Data.map().put("parameters", Data.map()
@@ -188,18 +197,39 @@ public class Main extends Plugin
 			.put("port", port)
 			.put("certificate", crt)
 			.put("key", key)))
-			.link("request", topic, "publish")
+			.link("request", queue, "data")
 			.name("Https Server");
 		
-		Factory.of(Flow.class).get(Flow.class).create()
-			.step(origin, 1, 0)
-			.step(topic, 1, 2)
-			.step(queue, 3, 2)
-			.step(router, 3, 4)
-			.step(response, 1, 4)
-			.name("Http")
-			.parameter("notes", "This data flow regroups the http server and routing entities.")
-			;
+		flow.step(origin, 0, 1).step(queue, 1, 1).step(router, 2, 1);
+	}
+	
+	private void createHttpServer(Flow.Type flow, Destination.Type response)
+	{
+		Action.Type router = Factory.of(Step.class).get(Router.class).create(
+				Data.map().put("parameters", Data.map().put("allfilters", true).put("allendpoints", true).put("path", "/.well-known/#")))
+			.name("Limited router")
+			.<Action.Type>cast()
+			.link("response", response, "response");
+		
+		Action.Type queue = Factory.of(Step.class).get(Queue.class)
+			.create(Data.map().put("parameters", Data.map().put("concurrency", 1).put("limit", 50)))
+			.name("Limited queue")
+			.<Action.Type>cast()
+			.link("data", router, "request");
+		
+		Config c = Manager.of(Config.class);
+		
+		int port = c.get(HttpServer.class, "default.http.port").asInt();
+		if( port <= 0 ) port = 80;
+		Data address = c.get(HttpServer.class, "default.address");
+		
+		Origin.Type origin = new HttpServer().template().create(Data.map().put("parameters", Data.map()
+			.put("address", address)
+			.put("port", port)))
+			.link("request", queue, "data")
+			.name("Http Server");
+		
+		flow.step(origin, 0, 3).step(queue, 1, 3).step(router, 2, 3);
 	}
 	
 	private void onAfterRun()

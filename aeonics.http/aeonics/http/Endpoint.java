@@ -12,18 +12,16 @@ import java.util.regex.Pattern;
 import aeonics.data.Data;
 import aeonics.entity.Entity;
 import aeonics.entity.Message;
-import aeonics.entity.Queue;
 import aeonics.entity.Registry;
 import aeonics.entity.Step;
 import aeonics.entity.Step.Destination;
+import aeonics.entity.Step.Origin;
 import aeonics.entity.Storage;
-import aeonics.entity.Topic;
 import aeonics.entity.security.Token;
 import aeonics.entity.security.User;
 import aeonics.manager.Manager;
 import aeonics.manager.Security;
 import aeonics.template.Channel;
-import aeonics.template.Factory;
 import aeonics.template.Item;
 import aeonics.template.Parameter;
 import aeonics.template.Relationship;
@@ -485,7 +483,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					if( beforeHandler != null )
 					{
 						Data new_params = Data.of(beforeHandler.apply(params, user));
-						if( new_params != null ) params = new_params;
+						if( new_params != null && !new_params.isNull() ) params = new_params;
 					}
 					
 					response = Data.of(process(params, user, request));
@@ -495,7 +493,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					if( errorHandler != null )
 					{
 						response = Data.of(errorHandler.apply(params, user, t));
-						if( response == null ) throw t;
+						if( response == null || response.isNull() ) throw t;
 						else return response;
 					}
 					else throw t;
@@ -504,7 +502,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				if( afterHandler != null )
 				{
 					Data new_response = Data.of(afterHandler.apply(params, user, response));
-					if( new_response != null ) response = new_response;
+					if( new_response != null && !new_response.isNull() ) response = new_response;
 				}
 				
 				return response;
@@ -663,7 +661,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 						value = Json.decode(value.asString());
 					
 					if( !p.b.validate(value) )
-						throw new HttpException(400, "Parameter validation failed for " + p.b.name());
+						throw new HttpException(400, "Parameter validation failed for '" + p.b.name() + "'");
 					params.put(p.b.name(), value);
 				}
 				return params;
@@ -842,66 +840,71 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				Data params = collectAndValidateParameters(request);
 				Data response = upgradeResponse(request);
 				
-				final User.Type user = Registry.of(User.class).get(request.user());
+				final User.Type user = Objects.requireNonNullElse(Registry.of(User.class).get(request.user()), User.ANONYMOUS);
 				final aeonics.http.protocol.Websocket ws = new aeonics.http.protocol.Websocket(request.connection());
 				
 				if( !params.isEmpty("publish") )
 				{
+					String id = params.asString("publish");
+					
+					Step.Type next = Registry.of(Step.class).get(id);
+					if( next == null ) throw new HttpException(413, "Unknown publishing entity");
+					
+					Origin.Type o = new Origin() { }
+						.template()
+						.summary("Websocket")
+						.<Origin.Template>cast()
+						.output(new Channel("data").summary("Data").description("Messages received from the connected party"))
+						.create()
+						.internal(true)
+						.snapshotMode(SnapshotMode.NONE)
+						.cast();
+					o.start();
+					o.link("data", next, params.asString("input"));
+						
+					final String key = params.asString("key");
 					ws.onRequest().then((message, websocket) ->
 					{
-						String topic = valueOf("publish", message.content()).asString();
-						String key = valueOf("key", message.content()).asString();
-						
-						if( !Manager.of(Security.class).granted(user, topic, response) )
-						{
-							((aeonics.http.protocol.Websocket)websocket).close(1008);
-							return;
-						}
-						
-						message.key(key);
-						
-						Step.Type t = Registry.of(Step.class).get(topic);
-						if( t instanceof Topic.Type )
-							t.<Topic.Type>cast().publish(message);
+						message.user(user.id());
+						message.key(valueOf(key, message.content()).asString());
+						o.produce(message, "data");
 					});
 					
 					ws.connection().onClose().then(Callback.once((x, y) -> 
 					{
 						ws.onRequest().clear();
+						o.internal(false);
+						Registry.of(Step.class).remove(o.id());
 					}));
 				}
 				
 				if( !params.isEmpty("subscribe") )
 				{
-					String topic = params.asString("subscribe");
-					if( !Manager.of(Security.class).granted(user, topic, response) )
-						throw new HttpException(403, "Subscription Denied");
+					String id = params.asString("subscribe");
 					
-					Step.Type t = Registry.of(Step.class).get(topic);
-					if( !(t instanceof Topic.Type) ) throw new HttpException(413, "Unknown subscription topic");
+					Step.Type previous = Registry.of(Step.class).get(id);
+					if( previous == null ) throw new HttpException(413, "Unknown subscription entity");
 					
-					Queue.Type q = Factory.of(Step.class).get(Queue.class).create()
-						.parameter("concurrency", 1);
 					Destination.Type d = new Destination() { }
 						.template()
 						.summary("Websocket")
 						.<Destination.Template>cast()
 						.input(new Channel("data").summary("Data").description("Send data to the connected party"))
 						.create()
+						.internal(true)
+						.snapshotMode(SnapshotMode.NONE)
 						.<Destination.Type>cast()
 						.processor((message, input) ->
 						{
 							ws.send(message.content().asString().getBytes(StandardCharsets.ISO_8859_1), aeonics.http.protocol.Websocket.OP_TEXT);
 						});
-					q.link("data", d, "data");
-					t.link("subscribe", q, "data", Data.map().put("binding", params.asString("filter")));
+					previous.link(params.asString("output"), d, "data");
 					
 					ws.connection().onClose().then(Callback.once((x, y) -> 
 					{
-						Registry.of(Step.class).remove(q.id());
+						d.internal(false);
 						Registry.of(Step.class).remove(d.id());
-						t.unlink("subscribe", q, "data");
-						q.unlink("data", d, "data");
+						previous.unlink("data", d, "data");
 					}));
 				}
 				
@@ -919,7 +922,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					value = p.b.resolve(value, request.content());
 					
 					if( !p.b.validate(value) )
-						throw new HttpException(400, "Parameter validation failed for " + p.b.name());
+						throw new HttpException(400, "Parameter validation failed for '" + p.b.name() + "'");
 					params.put(p.b.name(), value);
 				}
 				return params;
@@ -939,7 +942,12 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 						+ "in the 'Sec-WebSocket-Protocol' header if not set in the regular 'Authentication' header.")
 				.add(new Parameter("subscribe")
 					.summary("Subscribe")
-					.description("The name or id of the topic to subscribe to.")
+					.description("The id of the previous flow step to receive messages from.")
+					.format(Parameter.Format.TEXT)
+					.optional(true))
+				.add(new Parameter("output")
+					.summary("Subscriber output channel")
+					.description("The name of the output channel of the previous flow step when receiving messages.")
 					.format(Parameter.Format.TEXT)
 					.optional(true))
 				.add(new Parameter("filter")
@@ -950,7 +958,12 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					.defaultValue("#"))
 				.add(new Parameter("publish")
 					.summary("Publish")
-					.description("The name or id of the topic to publish on.")
+					.description("The id of the next flow step to forward messages to.")
+					.format(Parameter.Format.TEXT)
+					.optional(true))
+				.add(new Parameter("input")
+					.summary("Publisher input channel")
+					.description("The name of the input channel of the next flow step when forwarding messages.")
 					.format(Parameter.Format.TEXT)
 					.optional(true))
 				.add(new Parameter("key")
@@ -958,6 +971,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					.description("The publishing key to publish messages.")
 					.format(Parameter.Format.TEXT)
 					.optional(true)
+					.bindable(true)
 					.defaultValue("websocket"))
 				.<Endpoint.Template>cast()
 				.returns("This endpoint opens the websocket communication.")

@@ -568,6 +568,8 @@ public class Http1 implements HttpProtocol
 			Data post = Json.decode(new String(data, StandardCharsets.UTF_8));
 			if( post.isMap() )
 				state.request.put("post", post);
+			else
+				state.request.put("body", new String(data, StandardCharsets.ISO_8859_1));
 		}
 		else if( contentType.startsWith("multipart/form-data;") )
 		{
@@ -723,6 +725,8 @@ public class Http1 implements HttpProtocol
 								.put("content", new String(data, mark, i - mark - bboundary.length - (end?2:3), StandardCharsets.ISO_8859_1))
 							);
 						}
+						else if( mime != null && mime.equals("application/json") )
+							request.get("post").put(name, Json.decode(new String(data, mark, i - mark - bboundary.length - (end?2:3), StandardCharsets.ISO_8859_1)));
 						else
 							request.get("post").put(name, new String(data, mark, i - mark - bboundary.length - (end?2:3), StandardCharsets.ISO_8859_1));
 						
