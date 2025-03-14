@@ -131,10 +131,21 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 		 * @param url the URL to compare
 		 * @return true if the provided URL matches this endpoint
 		 */
-		public boolean matches(String url)
+		public boolean matchesPath(String url)
 		{
 			if( url == null || url.isEmpty() ) return false;
 			return url.equals(url());
+		}
+		
+		/**
+		 * Returns true if the provided HTTP method matches this endpoint
+		 * @param method the HTTP method to compare
+		 * @return true if the provided HTTP method matches this endpoint
+		 */
+		public boolean matchesMethod(String method)
+		{
+			if( method == null || method.isEmpty() ) return false;
+			return method.equals(method());
 		}
 		
 		/**
@@ -317,7 +328,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			 * @return true if the provided URL matches this endpoint
 			 */
 			@Override
-			public boolean matches(String url)
+			public boolean matchesPath(String url)
 			{
 				if( url == null || url.isEmpty() ) return false;
 				if( wildcardUrl == null ) return url.equals(url());
@@ -696,7 +707,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 			}
 
 			@Override
-			public boolean matches(String url)
+			public boolean matchesPath(String url)
 			{
 				String filter = Objects.requireNonNullElse(url(), "/");
 				if( filter != null && !url.startsWith(filter) ) return false;

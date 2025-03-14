@@ -137,8 +137,8 @@ public class Router extends Action
 			{
 				for( Endpoint.Type e : Registry.of(Endpoint.class) )
 				{
-					if( !e.method().equals(method) ) continue;
-					if( !e.matches(path) ) continue;
+					if( !e.matchesMethod(method) ) continue;
+					if( !e.matchesPath(path) ) continue;
 	
 					try( AutoCloseable ns = Manager.of(Monitor.class).ns(e) )
 					{
@@ -153,8 +153,8 @@ public class Router extends Action
 					Endpoint.Type e = (Endpoint.Type) x.a;
 					if( e == null ) continue;
 					
-					if( !e.method().equals(method) ) continue;
-					if( !e.matches(path) ) continue;
+					if( !e.matchesMethod(method) ) continue;
+					if( !e.matchesPath(path) ) continue;
 	
 					try( AutoCloseable ns = Manager.of(Monitor.class).ns(e) )
 					{
