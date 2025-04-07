@@ -13,9 +13,11 @@ import aeonics.entity.Step.Destination;
 import aeonics.entity.Step.Origin;
 import aeonics.entity.Storage;
 import aeonics.entity.security.Policy;
+import aeonics.entity.security.Role;
 import aeonics.entity.security.Rule;
 import aeonics.http.Endpoint;
 import aeonics.http.Endpoint.Rest;
+import aeonics.http.HttpException;
 import aeonics.http.HttpServer;
 import aeonics.http.Router;
 import aeonics.http.HttpResponse;
@@ -120,6 +122,8 @@ public class Main extends Plugin
 			
 		new Endpoint.Websocket().template()
 			.create()
+			.<Endpoint.Websocket.Type>cast()
+			.before((data, user) -> { if( !user.hasRole(Role.SUPERADMIN) ) throw new HttpException(403); })
 			.url("/api/ws");
 		
 		hasDefaultHttpSetup = Manager.of(Config.class).get(HttpServer.class, "initialized").asBool();

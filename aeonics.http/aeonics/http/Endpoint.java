@@ -796,6 +796,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 	
 	public static class Websocket extends Endpoint
 	{
+		@SuppressWarnings("unchecked")
 		public static class Type extends Endpoint.Type
 		{
 			public Type()
@@ -849,9 +850,10 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				}
 					
 				Data params = collectAndValidateParameters(request);
-				Data response = upgradeResponse(request);
-				
 				final User.Type user = Objects.requireNonNullElse(Registry.of(User.class).get(request.user()), User.ANONYMOUS);
+				if( beforeHandler != null ) beforeHandler.accept(params, user);
+				
+				Data response = upgradeResponse(request);
 				final aeonics.http.protocol.Websocket ws = new aeonics.http.protocol.Websocket(request.connection());
 				
 				if( !params.isEmpty("publish") )
@@ -896,6 +898,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					Step.Type previous = Registry.of(Step.class).get(id);
 					if( previous == null ) throw new HttpException(413, "Unknown subscription entity");
 					
+					final String filter = params.asString("filter");
 					Destination.Type d = new Destination() { }
 						.template()
 						.summary("Websocket")
@@ -907,7 +910,8 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 						.<Destination.Type>cast()
 						.processor((message, input) ->
 						{
-							ws.send(message.content().asString().getBytes(StandardCharsets.ISO_8859_1), aeonics.http.protocol.Websocket.OP_TEXT);
+							if( filter.isEmpty() || StringUtils.simplePathMatches(filter, message.key()) )
+								ws.send(message.content().asString().getBytes(StandardCharsets.ISO_8859_1), aeonics.http.protocol.Websocket.OP_TEXT);
 						});
 					previous.link(params.asString("output"), d, "data");
 					
@@ -916,6 +920,14 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 						d.internal(false);
 						Registry.of(Step.class).remove(d.id());
 						previous.unlink("data", d, "data");
+					}));
+				}
+				
+				if( cleanupHandler != null )
+				{
+					ws.connection().onClose().then(Callback.once((x, y) -> 
+					{
+						cleanupHandler.run();
 					}));
 				}
 				
@@ -938,6 +950,40 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				}
 				return params;
 			}
+			
+			/**
+			 * Handler called before processing the request
+			 */
+			private BiConsumer<Data, User.Type> beforeHandler = null;
+			
+			/**
+			 * Sets a handler to intercept the request before it is processed by this endpoint.
+			 * <p>It is the place to perform precondition or security checks and alter the input parameters if needed.
+			 * The handler has the following signature: <code>BiConsumer&lt;Data, User.Type&gt;</code></p>
+			 * <ol>
+			 * <li>The first argument represents the http request parameters</li>
+			 * <li>The second argument is the authenticated user</li>
+			 * </ol>
+			 * <p>It is allowed for the handler to modify the original request data in-place.
+			 * If the handler throws an exception, it will proceed through the error handler.</p>
+			 * @param <T> this
+			 * @param handler the before processing handler
+			 * @return this
+			 */
+			public <T extends Endpoint.Websocket.Type> T before(BiConsumer<Data, User.Type> handler) { beforeHandler = handler; return (T) this; }
+			
+			/**
+			 * Handler called after client has disconnected
+			 */
+			private Runnable cleanupHandler = null;
+			
+			/**
+			 * Sets a handler to cleanup ressources after the connection has been closed.
+			 * @param <T> this
+			 * @param handler the before processing handler
+			 * @return this
+			 */
+			public <T extends Endpoint.Websocket.Type> T cleanup(Runnable handler) { cleanupHandler = handler; return (T) this; }
 		}
 		
 		protected Class<? extends Websocket.Type> defaultTarget() { return Websocket.Type.class; }
