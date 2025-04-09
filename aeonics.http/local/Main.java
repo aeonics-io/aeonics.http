@@ -66,31 +66,37 @@ public class Main extends Plugin
 	{
 		Config c = Manager.of(Config.class);
 		
-		c.declare(HttpServer.class, new Parameter("default.tls.certificate")
+		c.declare(HttpServer.class, new Parameter("defaulttlscertificate")
 			.summary("Default HTTPS certificate")
 			.description("The certificate to use by the default HTTP Server entity. The certificate should be provided in PEM-encoded base64 format. It may be the path to a local file.")
 			.format(Parameter.Format.TEXT)
 			.optional(true)
 			.defaultValue(Data.empty()));
-		c.declare(HttpServer.class, new Parameter("default.tls.private")
+		c.declare(HttpServer.class, new Parameter("defaulttlsprivate")
 			.summary("Default HTTPS private key")
 			.description("The private key to use by the default HTTP Server entity. The private key should be provided in PEM-encoded base64 format. It may be the path to a local file.")
 			.format(Parameter.Format.TEXT)
 			.optional(true)
 			.defaultValue(Data.empty()));
-		c.declare(HttpServer.class, new Parameter("default.http.port")
+		c.declare(HttpServer.class, new Parameter("defaulthttpport")
 			.summary("Default HTTP port")
 			.description("The port number to use for the default HTTP server.")
 			.format(Parameter.Format.NUMBER)
 			.optional(true)
 			.defaultValue(80));
-		c.declare(HttpServer.class, new Parameter("default.https.port")
+		c.declare(HttpServer.class, new Parameter("defaulthttpsport")
 			.summary("Default HTTPS port")
 			.description("The port number to use for the default HTTPS server.")
 			.format(Parameter.Format.NUMBER)
 			.optional(true)
 			.defaultValue(443));
-		c.declare(HttpServer.class, new Parameter("default.address")
+		c.declare(HttpServer.class, new Parameter("defaultwebroot")
+			.summary("Default web root directory")
+			.description("The directory where file content will be served from.")
+			.format(Parameter.Format.TEXT)
+			.optional(true)
+			.defaultValue("www"));
+		c.declare(HttpServer.class, new Parameter("defaultaddress")
 			.summary("Default HTTP listening IP address")
 			.description("The IP address the default HTTP server will listen to. IPv4 or IPv6 can be specified depending on the system capabilities.")
 			.format(Parameter.Format.TEXT)
@@ -168,8 +174,8 @@ public class Main extends Plugin
 			.link("data", router, "request");
 		
 		Config c = Manager.of(Config.class);
-		Data crt = c.get(HttpServer.class, "default.tls.certificate");
-		Data key = c.get(HttpServer.class, "default.tls.private");
+		Data crt = c.get(HttpServer.class, "defaulttlscertificate");
+		Data key = c.get(HttpServer.class, "defaulttlsprivate");
 		
 		if( !crt.isEmpty() && !key.isEmpty() )
 		{
@@ -192,9 +198,9 @@ public class Main extends Plugin
 			key = t.b;
 		}
 		
-		int port = c.get(HttpServer.class, "default.https.port").asInt();
+		int port = c.get(HttpServer.class, "defaulthttpsport").asInt();
 		if( port <= 0 ) port = 443;
-		Data address = c.get(HttpServer.class, "default.address");
+		Data address = c.get(HttpServer.class, "defaultaddress");
 		
 		Origin.Type origin = new HttpServer().template().create(Data.map().put("parameters", Data.map()
 			.put("address", address)
@@ -223,9 +229,9 @@ public class Main extends Plugin
 		
 		Config c = Manager.of(Config.class);
 		
-		int port = c.get(HttpServer.class, "default.http.port").asInt();
+		int port = c.get(HttpServer.class, "defaulthttpport").asInt();
 		if( port <= 0 ) port = 80;
-		Data address = c.get(HttpServer.class, "default.address");
+		Data address = c.get(HttpServer.class, "defaultaddress");
 		
 		Origin.Type origin = new HttpServer().template().create(Data.map().put("parameters", Data.map()
 			.put("address", address)
@@ -249,7 +255,7 @@ public class Main extends Plugin
 		new Endpoint.File().template().create()
 			.addRelation("storage", new Storage.File()
 				.template()
-				.create(Data.map().put("parameters", Data.map().put("root", "www"))).name("Web root storage"));
+				.create(Data.map().put("parameters", Data.map().put("root", Manager.of(Config.class).get(HttpServer.class, "defaultwebroot")))).name("Web root storage"));
 	}
 	
 	private Tuple<Data, Data> generateSelfSignedCertificate()
