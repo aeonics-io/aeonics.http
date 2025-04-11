@@ -305,7 +305,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					while( m.find() )
 					{
 						sb.append(Pattern.quote(url.substring(i, m.start())));
-						sb.append("(.*?)");
+						sb.append("([^/]*?)");
 						i = m.end();
 						urlParameterNames.add(m.group(1));
 					}
