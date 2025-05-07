@@ -315,7 +315,7 @@ public class Http1 implements HttpProtocol
 			if( b == '=' ) // from name to value
 			{
 				if( state.mode != Mode.MODE_4_QUERYSTRING_NAME )
-					throw new HttpParseException("Illegal character in query string value", 400);
+					continue; // '=' is part of the value
 				
 				if( state.partial.size() > 0 )
 				{
@@ -325,7 +325,7 @@ public class Http1 implements HttpProtocol
 				}
 				else
 				{
-					if( state.i == state.mark ) throw new HttpParseException("Empty query string name", 400);
+					if( state.i == state.mark ) state.lastName = ""; // empty parameter name
 					state.lastName = new String(data, state.mark, state.i - state.mark, StandardCharsets.US_ASCII);
 				}
 				
@@ -517,7 +517,7 @@ public class Http1 implements HttpProtocol
 				}
 				else
 				{
-					if( state.i == state.mark ) throw new HttpParseException("Empty query string name", 400);
+					if( state.i == state.mark ) throw new HttpParseException("Empty header name", 400);
 					state.lastName = new String(data, state.mark, state.i - state.mark, StandardCharsets.US_ASCII);
 				}
 				
@@ -568,8 +568,7 @@ public class Http1 implements HttpProtocol
 			Data post = Json.decode(new String(data, StandardCharsets.UTF_8));
 			if( post.isMap() )
 				state.request.put("post", post);
-			else
-				state.request.put("body", new String(data, StandardCharsets.ISO_8859_1));
+			state.request.put("body", new String(data, StandardCharsets.ISO_8859_1));
 		}
 		else if( contentType.startsWith("multipart/form-data;") )
 		{

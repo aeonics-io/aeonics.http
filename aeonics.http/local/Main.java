@@ -161,6 +161,14 @@ public class Main extends Plugin
 	
 	private void createHttpsServer(Flow.Type flow, Destination.Type response)
 	{
+		Config c = Manager.of(Config.class);
+		int port = c.get(HttpServer.class, "defaulthttpsport").asInt();
+		if( port <= 0 || port > 65535 )
+		{
+			Manager.of(Logger.class).warning(HttpServer.class, "Default HTTPS instance disabled because of invalid port");
+			return;
+		}
+		
 		Action.Type router = Factory.of(Step.class).get(Router.class).create(
 				Data.map().put("parameters", Data.map().put("allfilters", true).put("allendpoints", true)))
 			.name("Default router")
@@ -173,7 +181,6 @@ public class Main extends Plugin
 			.<Action.Type>cast()
 			.link("data", router, "request");
 		
-		Config c = Manager.of(Config.class);
 		Data crt = c.get(HttpServer.class, "defaulttlscertificate");
 		Data key = c.get(HttpServer.class, "defaulttlsprivate");
 		
@@ -198,8 +205,6 @@ public class Main extends Plugin
 			key = t.b;
 		}
 		
-		int port = c.get(HttpServer.class, "defaulthttpsport").asInt();
-		if( port <= 0 ) port = 443;
 		Data address = c.get(HttpServer.class, "defaultaddress");
 		
 		Origin.Type origin = new HttpServer().template().create(Data.map().put("parameters", Data.map()
@@ -215,6 +220,14 @@ public class Main extends Plugin
 	
 	private void createHttpServer(Flow.Type flow, Destination.Type response)
 	{
+		Config c = Manager.of(Config.class);
+		int port = c.get(HttpServer.class, "defaulthttpport").asInt();
+		if( port <= 0 || port > 65535 )
+		{
+			Manager.of(Logger.class).warning(HttpServer.class, "Default HTTP instance disabled because of invalid port");
+			return;
+		}
+		
 		Action.Type router = Factory.of(Step.class).get(Router.class).create(
 				Data.map().put("parameters", Data.map().put("allfilters", true).put("allendpoints", true).put("path", "/.well-known/#")))
 			.name("Limited router")
@@ -227,10 +240,6 @@ public class Main extends Plugin
 			.<Action.Type>cast()
 			.link("data", router, "request");
 		
-		Config c = Manager.of(Config.class);
-		
-		int port = c.get(HttpServer.class, "defaulthttpport").asInt();
-		if( port <= 0 ) port = 80;
 		Data address = c.get(HttpServer.class, "defaultaddress");
 		
 		Origin.Type origin = new HttpServer().template().create(Data.map().put("parameters", Data.map()
