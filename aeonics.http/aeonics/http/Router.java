@@ -78,7 +78,7 @@ public class Router extends Action
 				if( !request.content().get("headers").isEmpty("connection") )
 					h.put("Connection", request.content().get("headers").get("connection"));
 				else
-					h.put("Connection", "close");
+					h.put("Connection", "keep-alive");
 			}
 			r.content().put("version", request.content().get("version"));
 			h.put("X-NS-Process", System.nanoTime() - start);

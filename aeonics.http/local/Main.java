@@ -140,12 +140,11 @@ public class Main extends Plugin
 		policy.name("Allow http for everyone by default");
 		policy.addRelation("rule", new Rule.MatchAll().template().create().name("Everyone"));
 		
-		
 		new CorsFilter().template().create().name("CORS Filter");
 		new GzipFilter().template().create().name("GZIP Filter");
 		new HeadersFilter().template().create().name("Custom headers filter");
 		new OptionsMethodFilter().template().create().name("Options method filter");
-		
+
 		// create the default http and https server
 		
 		Destination.Type response = new HttpResponse().template().create().name("Http responder");
