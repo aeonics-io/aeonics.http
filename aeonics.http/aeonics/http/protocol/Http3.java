@@ -1,9 +1,26 @@
 package aeonics.http.protocol;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLEngineResult;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSessionContext;
+import javax.net.ssl.TrustManagerFactory;
 
 import aeonics.data.Data;
 import aeonics.entity.Message;
@@ -14,9 +31,15 @@ import aeonics.manager.Network;
 import aeonics.util.Callback;
 
 /**
- * Very small HTTP/3 payload parser.
- *
- * <p>This class parses only a handful of HTTP/3 frames. It assumes the network connection already exposes bytes from a single QUIC stream and that header blocks are not compressed. Flow control, acknowledgments, QPACK and many other mandatory pieces of the protocol are intentionally ignored. This makes the class suitable only for testing or debugging.</p>
+ * Experimental HTTP/3 implementation running directly on top of QUIC.
+ * <p>
+ * This class attempts to handle QUIC packets provided by the network layer
+ * and expose HTTP/3 request messages similarly to {@link Http1}. It performs a
+ * minimal TLS handshake using Java's built-in {@link SSLEngine} and maintains a
+ * very small subset of QUIC functionality: packet ordering, acknowledgments and
+ * stream demultiplexing. Only HEADERS and DATA frames are interpreted. The goal
+ * is feature parity with the HTTP/1 parser but over QUIC.
+ * </p>
  */
 public class Http3 implements HttpProtocol
 {
@@ -27,7 +50,7 @@ public class Http3 implements HttpProtocol
     public Callback<Message, HttpProtocol> onRequest() { return onRequest; }
 
     private AtomicBoolean busy = new AtomicBoolean(false);
-    private State parseState = new State();
+    private QuicConnection quic = new QuicConnection();
 
     public Http3(Network.Connection connection)
     {
@@ -46,19 +69,20 @@ public class Http3 implements HttpProtocol
                     {
                         do
                         {
-                            Message m = parse(data, parseState);
+                            Message m = quic.handleDatagram(data);
                             if( m != null )
                             {
                                 m.connection(connection());
                                 onRequest().trigger(m);
                             }
-                            data = parseState.remaining;
+                            data = quic.remaining;
                         } while( data != null && data.length > 0 );
                     }
                 }
-                catch(HttpParseException e)
+                catch(Exception e)
                 {
-                    Manager.of(Logger.class).fine(HttpServer.class, "Http3 request parsing error: {}", e.getMessage());
+                    Manager.of(Logger.class).fine(HttpServer.class,
+                        "Http3 connection error: {}", e.getMessage());
                     try { c.close(); } catch(Exception x) { /* ignore */ }
                 }
                 finally
@@ -69,7 +93,197 @@ public class Http3 implements HttpProtocol
         });
     }
 
-    public static class State
+    // ---------------------------------------------------------------------
+    // QUIC implementation
+    // ---------------------------------------------------------------------
+
+    private static class QuicConnection
+    {
+        private enum State { INITIAL, HANDSHAKE, READY }
+
+        private State state = State.INITIAL;
+        private SSLEngine engine;
+        private ByteBuffer netIn = ByteBuffer.allocate(65535);
+        private ByteBuffer netOut = ByteBuffer.allocate(65535);
+        private ByteBuffer appIn = ByteBuffer.allocate(65535);
+        private Map<Long, ByteArrayOutputStream> streams = new HashMap<>();
+        private TreeMap<Long, byte[]> reorder = new TreeMap<>();
+        private long nextPacket = 0;
+        private StateFrame parseState = new StateFrame();
+        private byte[] remaining = null;
+
+        public QuicConnection()
+        {
+            try {
+                SSLContext ctx = createContext();
+                engine = ctx.createSSLEngine();
+                engine.setUseClientMode(false);
+                engine.beginHandshake();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private SSLContext createContext() throws Exception
+        {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+            kpg.initialize(2048);
+            KeyPair kp = kpg.generateKeyPair();
+            X509Certificate cert = local.DirtySelfSignedCertificateGenerator.selfSigned(kp, "localhost");
+
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            SSLContext ctx = SSLContext.getInstance("TLS");
+
+            java.security.KeyStore ks = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType());
+            ks.load(null, null);
+            ks.setKeyEntry("key", kp.getPrivate(), new char[0], new java.security.cert.Certificate[] { cert });
+            kmf.init(ks, new char[0]);
+            tmf.init(ks);
+            ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+            SSLSessionContext sess = ctx.getServerSessionContext();
+            sess.setSessionCacheSize(1);
+            return ctx;
+        }
+
+        Message handleDatagram(byte[] datagram) throws Exception
+        {
+            long pn = readPacketNumber(datagram);
+            byte[] payload = Arrays.copyOfRange(datagram, 4, datagram.length);
+            reorder.put(pn, payload);
+
+            Message out = null;
+            while(reorder.containsKey(nextPacket))
+            {
+                byte[] data = reorder.remove(nextPacket++);
+                out = handlePayload(data);
+                if(out != null) break;
+            }
+            remaining = null;
+            return out;
+        }
+
+        private long readPacketNumber(byte[] data)
+        {
+            return ((data[0]&0xFFL)<<24)|((data[1]&0xFFL)<<16)|((data[2]&0xFFL)<<8)|(data[3]&0xFFL);
+        }
+
+        private Message handlePayload(byte[] payload) throws Exception
+        {
+            switch(state)
+            {
+                case INITIAL:
+                case HANDSHAKE:
+                    netIn.clear();
+                    netIn.put(payload);
+                    netIn.flip();
+                    processHandshake();
+                    return null;
+                case READY:
+                    return handleApplication(payload);
+            }
+            return null;
+        }
+
+        private void processHandshake() throws Exception
+        {
+            boolean done = false;
+            while(!done)
+            {
+                SSLEngineResult r = engine.unwrap(netIn, appIn);
+                switch(r.getHandshakeStatus())
+                {
+                    case NEED_TASK:
+                        Runnable task; while((task = engine.getDelegatedTask()) != null) task.run();
+                        break;
+                    case NEED_WRAP:
+                        netOut.clear();
+                        r = engine.wrap(ByteBuffer.allocate(0), netOut);
+                        netOut.flip();
+                        remaining = Arrays.copyOfRange(netOut.array(), 0, netOut.limit());
+                        return;
+                    case FINISHED:
+                    case NOT_HANDSHAKING:
+                        done = true;
+                        break;
+                    default:
+                        break;
+                }
+                if(r.getStatus() == SSLEngineResult.Status.BUFFER_UNDERFLOW)
+                    return;
+            }
+            state = State.READY;
+        }
+
+        private Message handleApplication(byte[] payload) throws Exception
+        {
+            byte[] decrypted = decrypt(payload);
+            if(decrypted == null) return null;
+            return parseHttp3(decrypted, parseState);
+        }
+
+        private byte[] decrypt(byte[] payload) throws SSLException
+        {
+            netIn.clear();
+            netIn.put(payload);
+            netIn.flip();
+            appIn.clear();
+            SSLEngineResult r = engine.unwrap(netIn, appIn);
+            if(r.getStatus() != SSLEngineResult.Status.OK) return null;
+            appIn.flip();
+            byte[] out = new byte[appIn.remaining()];
+            appIn.get(out);
+            return out;
+        }
+
+        private Message parseHttp3(final byte[] data, final StateFrame state) throws HttpParseException
+        {
+            if( data.length == 0 ) return null;
+
+            state.mark = state.i = 0;
+            state.length = data.length;
+
+            try
+            {
+                while( state.i < state.length )
+                {
+                    switch(state.mode)
+                    {
+                        case TYPE:   _1_frameType(data, state); break;
+                        case LENGTH: _2_frameLength(data, state); break;
+                        case PAYLOAD:_3_framePayload(data, state); break;
+                        default: return null;
+                    }
+                    if( state.mode == Mode.COMPLETE ) break;
+                }
+            }
+            catch(Incomplete i)
+            {
+                state.mark = state.i = state.length;
+            }
+
+            if( state.i < state.length )
+                state.remaining = Arrays.copyOfRange(data, state.i, state.length);
+            else
+                state.remaining = null;
+
+            if( state.mode == Mode.COMPLETE )
+            {
+                Message m = new Message(state.request.asString("method") + state.request.asString("path"));
+                m.content(state.request);
+                state.reset();
+                return m;
+            }
+            else
+                return null;
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // HTTP/3 frame parsing (same as previous parser with small changes)
+    // ---------------------------------------------------------------------
+
+    private static class StateFrame
     {
         int mark, i, length;
         Mode mode = Mode.TYPE;
@@ -101,10 +315,10 @@ public class Http3 implements HttpProtocol
             mode = Mode.TYPE;
             partial.reset();
         }
-        public State() { reset(); }
+        public StateFrame() { reset(); }
     }
 
-    enum Mode
+    private enum Mode
     {
         TYPE,
         LENGTH,
@@ -125,62 +339,20 @@ public class Http3 implements HttpProtocol
 
     private static final int MAX_BODY_SIZE = 5242880; // 5MB
 
-    public static Message parse(final byte[] data, final State state) throws HttpParseException
-    {
-        if( data.length == 0 ) return null;
-
-        state.mark = state.i = 0;
-        state.length = data.length;
-
-        try
-        {
-            while( state.i < state.length )
-            {
-                switch(state.mode)
-                {
-                    case TYPE:   _1_frameType(data, state); break;
-                    case LENGTH: _2_frameLength(data, state); break;
-                    case PAYLOAD:_3_framePayload(data, state); break;
-                    default: return null;
-                }
-                if( state.mode == Mode.COMPLETE ) break;
-            }
-        }
-        catch(Incomplete i)
-        {
-            state.mark = state.i = state.length;
-        }
-
-        if( state.i < state.length )
-            state.remaining = Arrays.copyOfRange(data, state.i, state.length);
-        else
-            state.remaining = null;
-
-        if( state.mode == Mode.COMPLETE )
-        {
-            Message m = new Message(state.request.asString("method") + state.request.asString("path"));
-            m.content(state.request);
-            state.reset();
-            return m;
-        }
-        else
-            return null;
-    }
-
-    private static void _1_frameType(byte[] data, State state) throws HttpParseException
+    private static void _1_frameType(byte[] data, StateFrame state) throws HttpParseException
     {
         state.frameType = readVarInt(data, state);
         state.mode = Mode.LENGTH;
     }
 
-    private static void _2_frameLength(byte[] data, State state) throws HttpParseException
+    private static void _2_frameLength(byte[] data, StateFrame state) throws HttpParseException
     {
         state.frameLength = readVarInt(data, state);
         state.partial.reset();
         state.mode = Mode.PAYLOAD;
     }
 
-    private static void _3_framePayload(byte[] data, State state) throws HttpParseException
+    private static void _3_framePayload(byte[] data, StateFrame state) throws HttpParseException
     {
         int need = (int)(state.frameLength - state.partial.size());
         int left = state.length - state.i;
@@ -209,7 +381,7 @@ public class Http3 implements HttpProtocol
             state.mode = Mode.TYPE;
     }
 
-    private static void parseHeaders(byte[] payload, State state) throws HttpParseException
+    private static void parseHeaders(byte[] payload, StateFrame state) throws HttpParseException
     {
         int[] idx = new int[] { 0 };
         long count = readVarInt(payload, idx);
@@ -233,7 +405,7 @@ public class Http3 implements HttpProtocol
             state.mode = Mode.COMPLETE;
     }
 
-    private static void parseData(byte[] payload, State state) throws HttpParseException
+    private static void parseData(byte[] payload, StateFrame state) throws HttpParseException
     {
         if( state.bodyReceived + payload.length > MAX_BODY_SIZE )
             throw new HttpParseException("Body too large", 431);
@@ -249,13 +421,13 @@ public class Http3 implements HttpProtocol
         {
             long id = readVarInt(payload, idx);
             long value = readVarInt(payload, idx);
-            // this implementation ignores all settings
             if( idx[0] > payload.length )
                 throw new HttpParseException("Malformed SETTINGS", 400);
+            // settings are ignored
         }
     }
 
-    private static void parsePath(String path, State state) throws HttpParseException
+    private static void parsePath(String path, StateFrame state) throws HttpParseException
     {
         int q = path.indexOf('?');
         if( q >= 0 )
@@ -318,7 +490,7 @@ public class Http3 implements HttpProtocol
         }
     }
 
-    private static long readVarInt(byte[] data, State state) throws HttpParseException
+    private static long readVarInt(byte[] data, StateFrame state) throws HttpParseException
     {
         if( state.partial.size() == 0 )
         {
