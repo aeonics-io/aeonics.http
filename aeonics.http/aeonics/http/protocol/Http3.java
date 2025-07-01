@@ -13,6 +13,11 @@ import aeonics.manager.Manager;
 import aeonics.manager.Network;
 import aeonics.util.Callback;
 
+/**
+ * Very small HTTP/3 payload parser.
+ *
+ * <p>This class parses only a handful of HTTP/3 frames. It assumes the network connection already exposes bytes from a single QUIC stream and that header blocks are not compressed. Flow control, acknowledgments, QPACK and many other mandatory pieces of the protocol are intentionally ignored. This makes the class suitable only for testing or debugging.</p>
+ */
 public class Http3 implements HttpProtocol
 {
     private Network.Connection connection = null;
@@ -118,7 +123,6 @@ public class Http3 implements HttpProtocol
         public int status() { return status; }
     }
 
-    private static final int MAX_HEADER_SIZE = 4096; // 4KB
     private static final int MAX_BODY_SIZE = 5242880; // 5MB
 
     public static Message parse(final byte[] data, final State state) throws HttpParseException
@@ -195,6 +199,8 @@ public class Http3 implements HttpProtocol
             parseHeaders(payload, state);
         else if( state.frameType == 0x0 ) // DATA
             parseData(payload, state);
+        else if( state.frameType == 0x4 ) // SETTINGS
+            parseSettings(payload);
         // ignore other frames
 
         if( state.headersParsed && state.bodyReceived >= state.bodyExpected )
@@ -232,8 +238,21 @@ public class Http3 implements HttpProtocol
         if( state.bodyReceived + payload.length > MAX_BODY_SIZE )
             throw new HttpParseException("Body too large", 431);
         state.bodyReceived += payload.length;
-        String body = state.request.asString("body") + new String(payload, StandardCharsets.ISO_8859_1);
+        String body = state.request.asString("body") + new String(payload, StandardCharsets.UTF_8);
         state.request.put("body", body);
+    }
+
+    private static void parseSettings(byte[] payload) throws HttpParseException
+    {
+        int[] idx = new int[] { 0 };
+        while( idx[0] < payload.length )
+        {
+            long id = readVarInt(payload, idx);
+            long value = readVarInt(payload, idx);
+            // this implementation ignores all settings
+            if( idx[0] > payload.length )
+                throw new HttpParseException("Malformed SETTINGS", 400);
+        }
     }
 
     private static void parsePath(String path, State state) throws HttpParseException
@@ -338,7 +357,7 @@ public class Http3 implements HttpProtocol
     {
         long len = readVarInt(data, idx);
         if( idx[0] + len > data.length ) throw new HttpParseException("Malformed string", 400);
-        String s = new String(data, idx[0], (int)len, StandardCharsets.ISO_8859_1);
+        String s = new String(data, idx[0], (int)len, StandardCharsets.UTF_8);
         idx[0] += len;
         return s;
     }
