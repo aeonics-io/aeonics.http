@@ -22,8 +22,8 @@ public class CorsFilter extends Filter
 			{
 				if( acao.equals("*") )
 				{
-					if( !request.content().get("headers").isEmpty("referer") )
-						headers.put("Access-Control-Allow-Origin", request.content().get("headers").asString("referer")).put("Vary", "Origin");
+					if( !request.content().get("headers").isEmpty("origin") )
+						headers.put("Access-Control-Allow-Origin", request.content().get("headers").asString("origin")).put("Vary", "Origin");
 					else
 						headers.put("Access-Control-Allow-Origin", acao).put("Vary", "Origin");
 				}

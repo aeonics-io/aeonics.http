@@ -66,6 +66,8 @@ public class HttpResponse extends Destination
 				// HEADERS
 				for( Map.Entry<String, Data> i : h.entrySet() )
 				{
+					if( i.getValue().isEmpty() ) continue;
+					
 					sb.append(i.getKey());
 					sb.append(": ");
 					
