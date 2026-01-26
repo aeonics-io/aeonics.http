@@ -127,7 +127,7 @@ public class DirtySelfSignedCertificateGenerator
 			// 5) write validity interval
 			encodeSequence(
 				encodeTime(new Date(System.currentTimeMillis() - 60 * 60 * 1000)),
-				encodeTime(new Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000))
+				encodeTime(new Date(System.currentTimeMillis() + 20 * 365L * 24 * 60 * 60 * 1000))
 				),
 			
 			// 6) write subject

@@ -197,8 +197,9 @@ public class Http1 implements HttpProtocol
 		byte b = 0;
 		
 		// eat leading \r\n
-		for( b = data[state.i]; state.i < state.length; state.i++, state.uriSize++, b = data[state.i] )
+		for( ; state.i < state.length; state.i++, state.uriSize++ )
 		{
+			b = data[state.i];
 			if( b == '\r' || b == '\n' || b == ' ' )
 			{
 				if( state.uriSize > MAX_URI_SIZE )

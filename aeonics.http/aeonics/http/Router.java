@@ -81,7 +81,7 @@ public class Router extends Action
 					h.put("Connection", "keep-alive");
 			}
 			r.content().put("version", request.content().get("version"));
-			h.put("X-NS-Process", System.nanoTime() - start);
+			h.put("Server-Timing", "app;dur=" + ((System.nanoTime() - start)/1000000L));
 			
 			return r;
 		}
