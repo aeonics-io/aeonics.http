@@ -67,10 +67,14 @@ public class HttpResponse extends Destination
 				for( Map.Entry<String, Data> i : h.entrySet() )
 				{
 					if( i.getValue().isEmpty() ) continue;
-					
-					sb.append(i.getKey());
+
+					// Sanitize header name (remove CR/LF to prevent header injection)
+					String name = i.getKey().replace("\r", "").replace("\n", "");
+					if( name.isEmpty() ) continue;
+
+					sb.append(name);
 					sb.append(": ");
-					
+
 					if( i.getValue().isList() )
 					{
 						boolean first = true;
@@ -78,12 +82,14 @@ public class HttpResponse extends Destination
 						{
 							if( first ) first = false;
 							else sb.append(", ");
-							sb.append(v.asString());
+							// Sanitize header value (remove CR/LF to prevent header injection)
+							sb.append(v.asString().replace("\r", "").replace("\n", ""));
 						}
 					}
 					else
-						sb.append(i.getValue().asString());
-					
+						// Sanitize header value (remove CR/LF to prevent header injection)
+						sb.append(i.getValue().asString().replace("\r", "").replace("\n", ""));
+
 					sb.append("\r\n");
 				}
 				sb.append("\r\n");
