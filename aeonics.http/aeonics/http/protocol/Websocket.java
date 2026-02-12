@@ -76,7 +76,7 @@ public class Websocket implements HttpProtocol
 		});
 		
 		// send PING request every 10s
-		Manager.of(Timeout.class).watch(new Tracker<Websocket>(this)
+		Manager.of(Timeout.class).watch(new Tracker<Websocket>("Websocket Pinger", this)
 		{
 			int count = 0;
 			public long delay()
