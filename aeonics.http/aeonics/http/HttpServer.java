@@ -1,6 +1,8 @@
 package aeonics.http;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
@@ -16,15 +18,19 @@ import aeonics.manager.Lifecycle;
 import aeonics.manager.Logger;
 import aeonics.manager.Manager;
 import aeonics.manager.Network;
+import aeonics.manager.Scheduler;
 import aeonics.manager.Network.SecurityOptions;
 import aeonics.manager.Security;
 import aeonics.template.Channel;
 import aeonics.template.Parameter;
+import aeonics.util.Callback;
 
 public class HttpServer extends Origin
 {
 	private static class Type extends Origin.NetworkServer
 	{
+		private Scheduler.Cron.Type renewalCron = null;
+		
 		@Override
 		public Network.Server connect() throws Exception
 		{
@@ -39,6 +45,12 @@ public class HttpServer extends Origin
 				server = Manager.of(Network.class).server(valueOf("address").asString(), valueOf("port").asInt(), new SecurityOptions()
 					.withAlpn(Arrays.asList("http/1.1","http/1.0"))
 					.withServerCertificate(crt.asString(), key.asString(), null));
+				
+				if( !crt.asString().startsWith("-----BEGIN ") || !key.asString().startsWith("-----BEGIN ") )
+				{
+					renewalCron = Manager.of(Scheduler.class).every(this::checkServerCertificate, 1, ChronoUnit.DAYS);
+					server.onClose().then(Callback.once(() -> { Registry.of(Scheduler.Cron.class).remove(renewalCron); renewalCron = null; }));
+				}
 			}
 			final boolean tls = server.isSecure();
 			
@@ -93,6 +105,29 @@ public class HttpServer extends Origin
 			});
 			
 			return server;
+		}
+		
+		private void checkServerCertificate(ZonedDateTime now)
+		{
+			Network.Server server = server();
+			if( server == null || server.security() == null || server.security().serverCertificate() == null ) return;
+			
+			Data crt = valueOf("certificate");
+			Data key = valueOf("key");
+			if( crt.isEmpty() || crt.asString().startsWith("-----BEGIN ") || key.asString().startsWith("-----BEGIN ") ) return;
+			
+			try
+			{
+				if( !SecurityOptions.certificate(crt.asString()).equals(server.security().serverCertificate().a) )
+				{
+					server.security().withServerCertificate(crt.asString(), key.asString(), null);
+					Manager.of(Logger.class).info(HttpServer.class, "Certificate renewed");
+				}
+			}
+			catch(Exception e)
+			{
+				Manager.of(Logger.class).warning(HttpServer.class, "Certificate renewal check failed", e);
+			}
 		}
 		
 		/**

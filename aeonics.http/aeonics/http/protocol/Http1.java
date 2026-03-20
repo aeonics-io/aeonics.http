@@ -408,7 +408,7 @@ public class Http1 implements HttpProtocol
 				}
 			}
 			else if( b == '\r' || b == '\n' )
-				throw new HttpParseException("Unexpected EOL in Query String " + state.mode + " -- " + new String(data), 400);
+				throw new HttpParseException("Unexpected EOL in Query String " + state.mode, 400);
 			else if( b == '%' || b == '+')
 				state.isEncoded = true;
 		}
