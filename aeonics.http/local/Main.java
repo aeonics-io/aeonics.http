@@ -37,8 +37,8 @@ import aeonics.util.Tuples.Tuple;
 
 public class Main extends Plugin
 {
-	public String summary() { return "Http Server"; }
-	public String description() { return "Provides the basic HTTP protocol compatibility and starts the default web server on port 80. The default router action id is set in the configuration with the key \"http.default.router\"."; }
+	public String summary() { return "Http v1.0.0"; }
+	public String description() { return "Aeonics HTTP Transport"; }
 	
 	public void start()
 	{
