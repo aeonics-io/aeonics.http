@@ -650,6 +650,11 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					if( m.matches() )
 					{
 						Data get = request.content().get("get");
+						if( !get.isMap() )
+						{
+							get = Data.map();
+							request.content().put("get", get);
+						}
 						for( int i = 0; i < urlParameterNames.size(); i++ )
 							get.put(urlParameterNames.get(i), m.group(i+1));
 					}
@@ -658,10 +663,12 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 				Data params = Data.map();
 				for( Tuple<Data, Parameter> p : parameters().values() )
 				{
-					Data value = request.content().get("get").get(p.b.name());
-					if( value.isNull() )
+					Data value = Data.empty();
+					if( value.isNull() && request.content().isMap("get") )
+						value = request.content().get("get").get(p.b.name());
+					if( value.isNull() && request.content().isMap("post") )
 						value = request.content().get("post").get(p.b.name());
-					if( value.isNull() )
+					if( value.isNull() && request.content().isMap("files") )
 						value = request.content().get("files").get(p.b.name());
 					if( value.isNull() )
 						value = p.b.defaultValue();
