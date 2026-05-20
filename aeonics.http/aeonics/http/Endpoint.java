@@ -868,7 +868,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					String id = params.asString("publish");
 					
 					Step.Type next = Registry.of(Step.class).get(id);
-					if( next == null ) throw new HttpException(413, "Unknown publishing entity");
+					if( next == null ) throw new HttpException(422, "Unknown publishing entity");
 					
 					Origin.Type o = new Origin() { }
 						.template()
@@ -903,7 +903,7 @@ public abstract class Endpoint extends Item<Endpoint.Type>
 					String id = params.asString("subscribe");
 					
 					Step.Type previous = Registry.of(Step.class).get(id);
-					if( previous == null ) throw new HttpException(413, "Unknown subscription entity");
+					if( previous == null ) throw new HttpException(422, "Unknown subscription entity");
 					
 					final String filter = params.asString("filter");
 					Destination.Type d = new Destination() { }
