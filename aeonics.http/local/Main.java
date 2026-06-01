@@ -71,13 +71,13 @@ public class Main extends Plugin
 			.description("The certificate to use by the default HTTP Server entity. The certificate should be provided in PEM-encoded base64 format. It may be the path to a local file.")
 			.format(Parameter.Format.TEXT)
 			.optional(true)
-			.defaultValue(Data.empty()));
+			.defaultValue(() -> Data.empty()));
 		c.declare(HttpServer.class, new Parameter("defaulttlsprivate")
 			.summary("Default HTTPS private key")
 			.description("The private key to use by the default HTTP Server entity. The private key should be provided in PEM-encoded base64 format. It may be the path to a local file.")
 			.format(Parameter.Format.TEXT)
 			.optional(true)
-			.defaultValue(Data.empty()));
+			.defaultValue(() -> Data.empty()));
 		c.declare(HttpServer.class, new Parameter("defaulthttpport")
 			.summary("Default HTTP port")
 			.description("The port number to use for the default HTTP server.")

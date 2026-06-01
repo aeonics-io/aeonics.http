@@ -44,7 +44,7 @@ public class HeadersFilter extends Filter
 				.description("This parameter should be a set of key-value pair headers to set. The default value is: {\"Strict-Transport-Security\": \"max-age=31536000; includeSubDomains; preload\",\"X-XSS-Protection\": \"1; mode=block\",\"X-Content-Type-Options\": \"nosniff\",\"Content-Security-Policy\": \"default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-ancestors 'none'; block-all-mixed-content; upgrade-insecure-requests;\",\"X-Frame-Options\": \"DENY\",\"Referrer-Policy\": \"strict-origin-when-cross-origin\",\"Feature-Policy\": \"geolocation 'none'; microphone 'none'\"}")
 				.format(Parameter.Format.JSON)
 				.rule(Parameter.Rule.JSON_MAP)
-				.defaultValue(Data.map()
+				.defaultValue(() -> Data.map()
 					.put("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
 					.put("X-XSS-Protection", "1; mode=block")
 					.put("X-Content-Type-Options", "nosniff")
